@@ -75,6 +75,7 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hbase.Abortable;
+import org.apache.hadoop.hbase.AbstractServer;
 import org.apache.hadoop.hbase.CacheEvictionStats;
 import org.apache.hadoop.hbase.CallQueueTooBigException;
 import org.apache.hadoop.hbase.ClockOutOfSyncException;
@@ -317,7 +318,6 @@ public class HRegionServer extends HBaseServerBase<RSRpcServices>
   private LeaseManager leaseManager;
 
   private volatile boolean dataFsOk;
-
   static final String ABORT_TIMEOUT = "hbase.regionserver.abort.timeout";
   // Default abort timeout is 1200 seconds for safe
   private static final long DEFAULT_ABORT_TIMEOUT = 1200000;
@@ -339,8 +339,6 @@ public class HRegionServer extends HBaseServerBase<RSRpcServices>
   // Stub to do region server status calls against the master.
   private volatile RegionServerStatusService.BlockingInterface rssStub;
   private volatile LockService.BlockingInterface lockStub;
-  // RPC client. Used to make the stub above that does region server status checking.
-  private RpcClient rpcClient;
 
   private UncaughtExceptionHandler uncaughtExceptionHandler;
 
@@ -537,6 +535,13 @@ public class HRegionServer extends HBaseServerBase<RSRpcServices>
       mobFileCache = new MobFileCache(conf);
 
       rsSnapshotVerifier = new RSSnapshotVerifier(conf);
+
+      useThisHostnameInstead = getUseThisHostnameInstead(conf);
+      String hostName =
+          StringUtils.isBlank(useThisHostnameInstead) ? this.rpcServices.getIsa().getHostName()
+              : this.useThisHostnameInstead;
+      setServerName(
+        ServerName.valueOf(hostName, this.rpcServices.getIsa().getPort(), this.startcode));
 
       uncaughtExceptionHandler =
         (t, e) -> abort("Uncaught exception in executorService thread " + t.getName(), e);
@@ -973,7 +978,7 @@ public class HRegionServer extends HBaseServerBase<RSRpcServices>
 
       if (!this.killed && this.dataFsOk) {
         waitOnAllRegionsToClose(abortRequested.get());
-        LOG.info("stopping server " + this.serverName + "; all regions closed.");
+        LOG.info("stopping server " + getServerName() + "; all regions closed.");
       }
 
       // Stop the quota manager
@@ -1028,7 +1033,7 @@ public class HRegionServer extends HBaseServerBase<RSRpcServices>
 
       closeZooKeeper();
       closeTableDescriptors();
-      LOG.info("Exiting; stopping=" + this.serverName + "; zookeeper connection closed.");
+      LOG.info("Exiting; stopping=" + getServerName() + "; zookeeper connection closed.");
       span.setStatus(StatusCode.OK);
     } finally {
       span.end();
@@ -1074,7 +1079,7 @@ public class HRegionServer extends HBaseServerBase<RSRpcServices>
     final Span span = TraceUtil.createSpan("HRegionServer.tryRegionServerReport");
     try (Scope ignored = span.makeCurrent()) {
       RegionServerReportRequest.Builder request = RegionServerReportRequest.newBuilder();
-      request.setServer(ProtobufUtil.toServerName(this.serverName));
+      request.setServer(ProtobufUtil.toServerName(getServerName()));
       request.setLoad(sl);
       rss.regionServerReport(null, request.build());
       span.setStatus(StatusCode.OK);
@@ -1362,16 +1367,6 @@ public class HRegionServer extends HBaseServerBase<RSRpcServices>
     }
   }
 
-  private static boolean sleepInterrupted(long millis) {
-    boolean interrupted = false;
-    try {
-      Thread.sleep(millis);
-    } catch (InterruptedException e) {
-      LOG.warn("Interrupted while sleeping");
-      interrupted = true;
-    }
-    return interrupted;
-  }
 
   private void shutdownWAL(final boolean close) {
     if (this.walFactory != null) {
@@ -1402,6 +1397,8 @@ public class HRegionServer extends HBaseServerBase<RSRpcServices>
         // The hostname the master sees us as.
         if (key.equals(HConstants.KEY_FOR_HOSTNAME_SEEN_BY_MASTER)) {
           String hostnameFromMasterPOV = e.getValue();
+          setServerName(ServerName.valueOf(hostnameFromMasterPOV, rpcServices.getIsa().getPort(),
+              this.startcode));
           this.serverName = ServerName.valueOf(hostnameFromMasterPOV,
             rpcServices.getSocketAddress().getPort(), this.startcode);
           String expectedHostName = rpcServices.getSocketAddress().getHostName();
@@ -1452,7 +1449,7 @@ public class HRegionServer extends HBaseServerBase<RSRpcServices>
       // hack! Maps DFSClient => RegionServer for logs. HDFS made this
       // config param for task trackers, but we can piggyback off of it.
       if (this.conf.get("mapreduce.task.attempt.id") == null) {
-        this.conf.set("mapreduce.task.attempt.id", "hb_rs_" + this.serverName.toString());
+        this.conf.set("mapreduce.task.attempt.id", "hb_rs_" + getServerName().toString());
       }
 
       // Save it in a file, this will allow to see if we crash
@@ -1479,7 +1476,7 @@ public class HRegionServer extends HBaseServerBase<RSRpcServices>
       startReplicationService();
 
       // Set up ZK
-      LOG.info("Serving as " + this.serverName + ", RpcServer on " + rpcServices.getSocketAddress()
+      LOG.info("Serving as " + getServerName() + ", RpcServer on " + rpcServices.getSocketAddress()
         + ", sessionid=0x"
         + Long.toHexString(this.zooKeeper.getRecoverableZooKeeper().getSessionId()));
 
@@ -1611,11 +1608,12 @@ public class HRegionServer extends HBaseServerBase<RSRpcServices>
     });
 
     HDFSBlocksDistribution hdfsBd = r.getHDFSBlocksDistribution();
-    float dataLocality = hdfsBd.getBlockLocalityIndex(serverName.getHostname());
-    float dataLocalityForSsd = hdfsBd.getBlockLocalityIndexForSsd(serverName.getHostname());
+    float dataLocality = hdfsBd.getBlockLocalityIndex(getServerName().getHostname());
+    float dataLocalityForSsd = hdfsBd.getBlockLocalityIndexForSsd(getServerName().getHostname());
     long blocksTotalWeight = hdfsBd.getUniqueBlocksTotalWeight();
-    long blocksLocalWeight = hdfsBd.getBlocksLocalWeight(serverName.getHostname());
-    long blocksLocalWithSsdWeight = hdfsBd.getBlocksLocalWithSsdWeight(serverName.getHostname());
+    long blocksLocalWeight = hdfsBd.getBlocksLocalWeight(getServerName().getHostname());
+    long blocksLocalWithSsdWeight =
+        hdfsBd.getBlocksLocalWithSsdWeight(getServerName().getHostname());
     if (regionLoadBldr == null) {
       regionLoadBldr = RegionLoad.newBuilder();
     }
@@ -1784,16 +1782,16 @@ public class HRegionServer extends HBaseServerBase<RSRpcServices>
    * be hooked up to WAL.
    */
   private void setupWALAndReplication() throws IOException {
-    WALFactory factory = new WALFactory(conf, serverName, this);
+    WALFactory factory = new WALFactory(conf, getServerName(), this);
     // TODO Replication make assumptions here based on the default filesystem impl
     Path oldLogDir = new Path(walRootDir, HConstants.HREGION_OLDLOGDIR_NAME);
-    String logName = AbstractFSWALProvider.getWALDirectoryName(this.serverName.toString());
+    String logName = AbstractFSWALProvider.getWALDirectoryName(getServerName().toString());
 
     Path logDir = new Path(walRootDir, logName);
     LOG.debug("logDir={}", logDir);
     if (this.walFs.exists(logDir)) {
       throw new RegionServerRunningException(
-        "Region server has already created directory at " + this.serverName.toString());
+        "Region server has already created directory at " + getServerName().toString());
     }
     // Always create wal directory as now we need this when master restarts to find out the live
     // region servers.
@@ -2285,7 +2283,7 @@ public class HRegionServer extends HBaseServerBase<RSRpcServices>
       } else {
         try {
           MetaTableAccessor.updateRegionLocation(asyncClusterConnection.toConnection(), hris[0],
-            serverName, openSeqNum, masterSystemTime);
+            getServerName(), openSeqNum, masterSystemTime);
         } catch (IOException e) {
           LOG.info("Failed to update meta", e);
           return false;
@@ -2304,7 +2302,7 @@ public class HRegionServer extends HBaseServerBase<RSRpcServices>
 
     ReportRegionStateTransitionRequest.Builder builder =
       ReportRegionStateTransitionRequest.newBuilder();
-    builder.setServer(ProtobufUtil.toServerName(serverName));
+    builder.setServer(ProtobufUtil.toServerName(getServerName()));
     RegionStateTransition.Builder transition = builder.addTransitionBuilder();
     transition.setTransitionCode(code);
     if (code == TransitionCode.OPENED && openSeqNum >= 0) {
@@ -2462,7 +2460,7 @@ public class HRegionServer extends HBaseServerBase<RSRpcServices>
       RegionServerStatusService.BlockingInterface rss = rssStub;
       if (rss != null && this.serverName != null) {
         ReportRSFatalErrorRequest.Builder builder = ReportRSFatalErrorRequest.newBuilder();
-        builder.setServer(ProtobufUtil.toServerName(this.serverName));
+        builder.setServer(ProtobufUtil.toServerName(getServerName()));
         builder.setErrorMessage(msg);
         rss.reportRSFatalError(null, builder.build());
       }
@@ -2554,9 +2552,9 @@ public class HRegionServer extends HBaseServerBase<RSRpcServices>
    * You can break from this block by requesting the server stop.
    * @return master + port, or null if server has been stopped
    */
-  private synchronized ServerName createRegionServerStatusStub() {
-    // Create RS stub without refreshing the master node from ZK, use cached data
-    return createRegionServerStatusStub(false);
+
+  private synchronized void createRegionServerStatusStub(){
+    createRegionServerStatusStub(false);
   }
 
   /**
@@ -2684,7 +2682,9 @@ public class HRegionServer extends HBaseServerBase<RSRpcServices>
       } else {
         LOG.warn("error telling master we are up", se);
       }
-      rssStub = null;
+      if (rssStub == rss) {
+        rssStub = null;
+      }
     }
     return result;
   }
@@ -2922,9 +2922,7 @@ public class HRegionServer extends HBaseServerBase<RSRpcServices>
   static HRegionServer constructRegionServer(final Class<? extends HRegionServer> regionServerClass,
     final Configuration conf) {
     try {
-      Constructor<? extends HRegionServer> c =
-        regionServerClass.getConstructor(Configuration.class);
-      return c.newInstance(conf);
+      return (HRegionServer) constructServer(regionServerClass, conf);
     } catch (Exception e) {
       throw new RuntimeException(
         "Failed construction of " + "Regionserver: " + regionServerClass.toString(), e);
@@ -3181,10 +3179,10 @@ public class HRegionServer extends HBaseServerBase<RSRpcServices>
         regionName == null ? encodedRegionName : Bytes.toStringBinary(regionName);
       if (isOpening != null && isOpening) {
         throw new RegionOpeningException(
-          "Region " + regionNameStr + " is opening on " + this.serverName);
+          "Region " + regionNameStr + " is opening on " + getServerName());
       }
       throw new NotServingRegionException(
-        "" + regionNameStr + " is not online on " + this.serverName);
+        "" + regionNameStr + " is not online on " + getServerName());
     }
     return region;
   }

@@ -35,6 +35,7 @@ import org.apache.hadoop.hbase.executor.ExecutorService;
 import org.apache.hadoop.hbase.favored.FavoredNodesManager;
 import org.apache.hadoop.hbase.master.assignment.AssignmentManager;
 import org.apache.hadoop.hbase.master.hbck.HbckChore;
+import org.apache.hadoop.hbase.master.compaction.CompactionServerManager;
 import org.apache.hadoop.hbase.master.janitor.CatalogJanitor;
 import org.apache.hadoop.hbase.master.locking.LockManager;
 import org.apache.hadoop.hbase.master.normalizer.RegionNormalizerManager;
@@ -88,6 +89,10 @@ public interface MasterServices extends Server {
 
   /** Returns Master's {@link ServerManager} instance. */
   ServerManager getServerManager();
+
+  default CompactionServerManager getCompactionServerManager() {
+    return null;
+  }
 
   /** Returns Master's instance of {@link ExecutorService} */
   ExecutorService getExecutorService();
@@ -429,6 +434,8 @@ public interface MasterServices extends Server {
   LockManager getLockManager();
 
   public String getRegionServerVersion(final ServerName sn);
+
+  public String getCompactionServerVersion(final ServerName sn);
 
   /**
    * Called when a new RegionServer is added to the cluster. Checks if new server has a newer

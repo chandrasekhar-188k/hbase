@@ -1210,6 +1210,7 @@ public class RSRpcServices extends HBaseRpcServicesBase<HRegionServer>
     minimumScanTimeLimitDelta = conf.getLong(REGION_SERVER_RPC_MINIMUM_SCAN_TIME_LIMIT_DELTA,
       DEFAULT_REGION_SERVER_RPC_MINIMUM_SCAN_TIME_LIMIT_DELTA);
     rpcServer.setNamedQueueRecorder(rs.getNamedQueueRecorder());
+    priority = createPriority();
     closedScanners = CacheBuilder.newBuilder()
       .expireAfterAccess(scannerLeaseTimeoutPeriod, TimeUnit.MILLISECONDS).build();
   }

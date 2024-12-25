@@ -17,6 +17,7 @@
  */
 package org.apache.hadoop.hbase.security;
 
+import org.apache.hadoop.hbase.shaded.protobuf.generated.CompactionServerStatusProtos;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.security.authorize.PolicyProvider;
 import org.apache.hadoop.security.authorize.ProxyUsers;
@@ -50,7 +51,9 @@ public class HBasePolicyProvider extends PolicyProvider {
       new Service("security.masterregion.protocol.acl",
         RegionServerStatusService.BlockingInterface.class),
       new Service("security.regionserver.protocol.acl",
-        BootstrapNodeService.BlockingInterface.class) };
+        BootstrapNodeService.BlockingInterface.class),
+    new Service("security.masterregion.protocol.acl",
+      CompactionServerStatusProtos.CompactionServerStatusService.BlockingInterface.class) };
 
   @Override
   public Service[] getServices() {

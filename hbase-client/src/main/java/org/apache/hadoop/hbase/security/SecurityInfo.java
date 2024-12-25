@@ -34,6 +34,7 @@ import org.apache.hadoop.hbase.shaded.protobuf.generated.MasterProtos;
 import org.apache.hadoop.hbase.shaded.protobuf.generated.MasterProtos.MasterService;
 import org.apache.hadoop.hbase.shaded.protobuf.generated.RegionServerStatusProtos;
 import org.apache.hadoop.hbase.shaded.protobuf.generated.RegistryProtos;
+import org.apache.hadoop.hbase.shaded.protobuf.generated.CompactionServerStatusProtos;
 
 /**
  * Maps RPC protocol interfaces to required configuration
@@ -60,6 +61,8 @@ public class SecurityInfo {
     infos.put(BootstrapNodeProtos.BootstrapNodeService.getDescriptor().getName(),
       new SecurityInfo(SecurityConstants.REGIONSERVER_KRB_PRINCIPAL, Kind.HBASE_AUTH_TOKEN));
     infos.put(LockServiceProtos.LockService.getDescriptor().getName(),
+      new SecurityInfo(SecurityConstants.MASTER_KRB_PRINCIPAL, Kind.HBASE_AUTH_TOKEN));
+    infos.put(CompactionServerStatusProtos.CompactionServerStatusService.getDescriptor().getName(),
       new SecurityInfo(SecurityConstants.MASTER_KRB_PRINCIPAL, Kind.HBASE_AUTH_TOKEN));
     // NOTE: IF ADDING A NEW SERVICE, BE SURE TO UPDATE HBasePolicyProvider ALSO ELSE
     // new Service will not be found when all is Kerberized!!!!
