@@ -27,6 +27,7 @@ import org.apache.yetus.audience.InterfaceAudience;
 import org.apache.hadoop.hbase.shaded.protobuf.generated.AdminProtos.AdminService;
 import org.apache.hadoop.hbase.shaded.protobuf.generated.BootstrapNodeProtos.BootstrapNodeService;
 import org.apache.hadoop.hbase.shaded.protobuf.generated.ClientProtos.ClientService;
+import org.apache.hadoop.hbase.shaded.protobuf.generated.CompactionServerStatusProtos;
 import org.apache.hadoop.hbase.shaded.protobuf.generated.LockServiceProtos.LockService;
 import org.apache.hadoop.hbase.shaded.protobuf.generated.MasterProtos;
 import org.apache.hadoop.hbase.shaded.protobuf.generated.MasterProtos.MasterService;
@@ -39,18 +40,19 @@ import org.apache.hadoop.hbase.shaded.protobuf.generated.RegistryProtos;
  */
 @InterfaceAudience.Private
 public class HBasePolicyProvider extends PolicyProvider {
-  protected final static Service[] services =
-    { new Service("security.client.protocol.acl", ClientService.BlockingInterface.class),
-      new Service("security.client.protocol.acl", AdminService.BlockingInterface.class),
-      new Service("security.client.protocol.acl", MasterProtos.HbckService.BlockingInterface.class),
-      new Service("security.client.protocol.acl",
-        RegistryProtos.ClientMetaService.BlockingInterface.class),
-      new Service("security.admin.protocol.acl", MasterService.BlockingInterface.class),
-      new Service("security.admin.protocol.acl", LockService.BlockingInterface.class),
-      new Service("security.masterregion.protocol.acl",
-        RegionServerStatusService.BlockingInterface.class),
-      new Service("security.regionserver.protocol.acl",
-        BootstrapNodeService.BlockingInterface.class) };
+  protected final static Service[] services = {
+    new Service("security.client.protocol.acl", ClientService.BlockingInterface.class),
+    new Service("security.client.protocol.acl", AdminService.BlockingInterface.class),
+    new Service("security.client.protocol.acl", MasterProtos.HbckService.BlockingInterface.class),
+    new Service("security.client.protocol.acl",
+      RegistryProtos.ClientMetaService.BlockingInterface.class),
+    new Service("security.admin.protocol.acl", MasterService.BlockingInterface.class),
+    new Service("security.admin.protocol.acl", LockService.BlockingInterface.class),
+    new Service("security.masterregion.protocol.acl",
+      RegionServerStatusService.BlockingInterface.class),
+    new Service("security.regionserver.protocol.acl", BootstrapNodeService.BlockingInterface.class),
+    new Service("security.masterregion.protocol.acl",
+      CompactionServerStatusProtos.CompactionServerStatusService.BlockingInterface.class) };
 
   @Override
   public Service[] getServices() {

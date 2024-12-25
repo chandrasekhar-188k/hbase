@@ -21,6 +21,7 @@ import static org.apache.hadoop.hbase.ChoreService.CHORE_SERVICE_INITIAL_POOL_SI
 import static org.apache.hadoop.hbase.ChoreService.DEFAULT_CHORE_SERVICE_INITIAL_POOL_SIZE;
 import static org.apache.hadoop.hbase.HConstants.DEFAULT_HBASE_SPLIT_COORDINATED_BY_ZK;
 import static org.apache.hadoop.hbase.HConstants.HBASE_SPLIT_WAL_COORDINATED_BY_ZK;
+import static org.apache.hadoop.hbase.regionserver.HRegionServer.MASTERLESS_CONFIG_NAME;
 
 import com.google.errorprone.annotations.RestrictedApi;
 import io.opentelemetry.api.trace.Span;
@@ -28,6 +29,9 @@ import io.opentelemetry.api.trace.StatusCode;
 import io.opentelemetry.context.Scope;
 import java.io.IOException;
 import java.lang.management.MemoryType;
+import java.lang.reflect.Constructor;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.net.BindException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
@@ -51,15 +55,22 @@ import org.apache.hadoop.hbase.executor.ExecutorService;
 import org.apache.hadoop.hbase.fs.HFileSystem;
 import org.apache.hadoop.hbase.http.InfoServer;
 import org.apache.hadoop.hbase.io.util.MemorySizeUtil;
+import org.apache.hadoop.hbase.ipc.RpcClient;
 import org.apache.hadoop.hbase.ipc.RpcServerInterface;
+import org.apache.hadoop.hbase.ipc.ServerNotRunningYetException;
 import org.apache.hadoop.hbase.master.HMaster;
 import org.apache.hadoop.hbase.master.MasterCoprocessorHost;
+import org.apache.hadoop.hbase.master.MasterRpcServicesVersionWrapper;
 import org.apache.hadoop.hbase.namequeues.NamedQueueRecorder;
+import org.apache.hadoop.hbase.procedure.RegionServerProcedureManagerHost;
+import org.apache.hadoop.hbase.regionserver.BootstrapNodeManager;
 import org.apache.hadoop.hbase.regionserver.ChunkCreator;
 import org.apache.hadoop.hbase.regionserver.HeapMemoryManager;
 import org.apache.hadoop.hbase.regionserver.MemStoreLAB;
 import org.apache.hadoop.hbase.regionserver.RegionServerCoprocessorHost;
+import org.apache.hadoop.hbase.regionserver.RegionServerServices;
 import org.apache.hadoop.hbase.regionserver.ShutdownHook;
+import org.apache.hadoop.hbase.regionserver.regionreplication.RegionReplicationBufferManager;
 import org.apache.hadoop.hbase.security.Superusers;
 import org.apache.hadoop.hbase.security.User;
 import org.apache.hadoop.hbase.security.UserProvider;
@@ -75,11 +86,20 @@ import org.apache.hadoop.hbase.util.NettyEventLoopGroupConfig;
 import org.apache.hadoop.hbase.util.Pair;
 import org.apache.hadoop.hbase.util.Sleeper;
 import org.apache.hadoop.hbase.zookeeper.ClusterStatusTracker;
+import org.apache.hadoop.hbase.zookeeper.MasterAddressTracker;
 import org.apache.hadoop.hbase.zookeeper.ZKAuthentication;
+import org.apache.hadoop.hbase.zookeeper.ZKClusterId;
+import org.apache.hadoop.hbase.zookeeper.ZKNodeTracker;
 import org.apache.hadoop.hbase.zookeeper.ZKWatcher;
+import org.apache.hadoop.ipc.RemoteException;
 import org.apache.yetus.audience.InterfaceAudience;
+import org.apache.zookeeper.KeeperException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import org.apache.hbase.thirdparty.com.google.protobuf.BlockingRpcChannel;
+
+import org.apache.hadoop.hbase.shaded.protobuf.generated.RegionServerStatusProtos;
 
 /**
  * Base class for hbase services, such as master or region server.
@@ -100,6 +120,13 @@ public abstract class HBaseServerBase<R extends HBaseRpcServicesBase<?>> extends
   // shutdown. Also set by call to stop when debugging or running unit tests
   // of HRegionServer in isolation.
   protected volatile boolean stopped = false;
+  /**
+   * Unique identifier for the cluster we are a part of.
+   */
+  protected String clusterId;
+  protected RegionServerProcedureManagerHost rspmHost;
+  protected BootstrapNodeManager bootstrapNodeManager;
+  protected RegionReplicationBufferManager regionReplicationBufferManager;
 
   // Only for testing
   private boolean isShutdownHookInstalled = false;
@@ -164,10 +191,10 @@ public abstract class HBaseServerBase<R extends HBaseRpcServicesBase<?>> extends
 
   protected Path walRootDir;
 
-  protected final int msgInterval;
+  protected int msgInterval;
 
   // A sleeper that sleeps for msgInterval.
-  protected final Sleeper sleeper;
+  protected Sleeper sleeper;
 
   /**
    * Go here to get table descriptors.
@@ -186,6 +213,21 @@ public abstract class HBaseServerBase<R extends HBaseRpcServicesBase<?>> extends
   protected final MetaRegionLocationCache metaRegionLocationCache;
 
   protected final NettyEventLoopGroupConfig eventLoopGroupConfig;
+
+  // RPC client. Used to make the stub above that does region server status checking.
+  protected RpcClient rpcClient;
+
+  // master address tracker
+  protected MasterAddressTracker masterAddressTracker;
+  protected int shortOperationTimeout;
+  /**
+   * True if this RegionServer is coming up in a cluster where there is no Master; means it needs to
+   * just come up and make do without a Master to talk to: e.g. in test or HRegionServer is doing
+   * other than its usual duties: e.g. as an hollowed-out host whose only purpose is as a
+   * Replication-stream sink; see HBASE-18846 for more. TODO: can this replace
+   * {@link org.apache.hadoop.hbase.regionserver.HRegionServer#TEST_SKIP_REPORTING_TRANSITION} ?
+   */
+  protected final boolean masterless;
 
   private void setupSignalHandlers() {
     if (!SystemUtils.IS_OS_WINDOWS) {
@@ -305,6 +347,9 @@ public abstract class HBaseServerBase<R extends HBaseRpcServicesBase<?>> extends
         clusterStatusTracker = null;
       }
       putUpWebUI();
+      this.shortOperationTimeout = conf.getInt(HConstants.HBASE_RPC_SHORTOPERATION_TIMEOUT_KEY,
+        HConstants.DEFAULT_HBASE_RPC_SHORTOPERATION_TIMEOUT);
+      this.masterless = conf.getBoolean(MASTERLESS_CONFIG_NAME, false);
       span.setStatus(StatusCode.OK);
     } catch (Throwable t) {
       TraceUtil.setError(span, t);
@@ -565,6 +610,111 @@ public abstract class HBaseServerBase<R extends HBaseRpcServicesBase<?>> extends
     return walFs;
   }
 
+  /**
+   * Bring up connection to zk ensemble and then wait until a master for this cluster and then after
+   * that, wait until cluster 'up' flag has been set. This is the order in which master does things.
+   * <p>
+   * Finally open long-living server short-circuit connection.
+   */
+  @edu.umd.cs.findbugs.annotations.SuppressWarnings(value = "RV_RETURN_VALUE_IGNORED_BAD_PRACTICE",
+      justification = "cluster Id znode read would give us correct response")
+  protected void initializeZooKeeper() throws IOException, InterruptedException {
+    // Nothing to do in here if no Master in the mix.
+    if (this.masterless) {
+      return;
+    }
+
+    // Create the master address tracker, register with zk, and start it. Then
+    // block until a master is available. No point in starting up if no master
+    // running.
+    blockAndCheckIfStopped(this.masterAddressTracker);
+
+    // Wait on cluster being up. Master will set this flag up in zookeeper
+    // when ready.
+    blockAndCheckIfStopped(this.clusterStatusTracker);
+
+    // If we are HMaster then the cluster id should have already been set.
+    if (clusterId == null) {
+      // Retrieve clusterId
+      // Since cluster status is now up
+      // ID should have already been set by HMaster
+      try {
+        clusterId = ZKClusterId.readClusterIdZNode(this.zooKeeper);
+        if (clusterId == null) {
+          this.abort("Cluster ID has not been set");
+        }
+        LOG.info("ClusterId : " + clusterId);
+      } catch (KeeperException e) {
+        this.abort("Failed to retrieve Cluster ID", e);
+      }
+    }
+
+    if (isStopped() || isAborted()) {
+      return; // No need for further initialization
+    }
+
+    // watch for snapshots and other procedures
+    try {
+      rspmHost = new RegionServerProcedureManagerHost();
+      rspmHost.loadProcedures(conf);
+      RegionServerServices regionServerServices = getRegionServerServices();
+      if (null != regionServerServices) {
+        rspmHost.initialize(regionServerServices);
+      }
+    } catch (KeeperException e) {
+      this.abort("Failed to reach coordination cluster when creating procedure handler.", e);
+    }
+  }
+
+  protected RegionServerServices getRegionServerServices() {
+    return null;
+  }
+
+  /**
+   * Utilty method to wait indefinitely on a znode availability while checking if the region server
+   * is shut down
+   * @param tracker znode tracker to use
+   * @throws IOException          any IO exception, plus if the RS is stopped
+   * @throws InterruptedException if the waiting thread is interrupted
+   */
+  protected void blockAndCheckIfStopped(ZKNodeTracker tracker)
+    throws IOException, InterruptedException {
+    while (tracker.blockUntilAvailable(this.msgInterval, false) == null) {
+      if (this.stopped) {
+        throw new IOException("Received the shutdown message while waiting.");
+      }
+    }
+  }
+
+  /**
+   * All initialization needed before we go register with Master.<br>
+   * Do bare minimum. Do bulk of initializations AFTER we've connected to the Master.<br>
+   * In here we just put up the RpcServer, setup Connection, and ZooKeeper.
+   */
+  protected void preRegistrationInitialization() {
+    final Span span = TraceUtil.createSpan("HRegionServer.preRegistrationInitialization");
+    try (Scope ignored = span.makeCurrent()) {
+      initializeZooKeeper();
+      setupClusterConnection();
+      bootstrapNodeManager = new BootstrapNodeManager(asyncClusterConnection, masterAddressTracker);
+      RegionServerServices regionServerServices = getRegionServerServices();
+      if (null != regionServerServices) {
+        regionReplicationBufferManager = new RegionReplicationBufferManager(regionServerServices);
+      }
+      // Setup RPC client for master communication
+      this.rpcClient = asyncClusterConnection.getRpcClient();
+      span.setStatus(StatusCode.OK);
+    } catch (Throwable t) {
+      // Call stop if error or process will stick around for ever since server
+      // puts up non-daemon threads.
+      TraceUtil.setError(span, t);
+      getRpcServices().stop();
+      abort("Initialization of RS failed.  Hence aborting RS.", t);
+    } finally {
+      span.end();
+    }
+  }
+
   /** Returns True if the cluster is up. */
   public boolean isClusterUp() {
     return !clusterMode() || this.clusterStatusTracker.isClusterUp();
@@ -672,4 +822,118 @@ public abstract class HBaseServerBase<R extends HBaseRpcServicesBase<?>> extends
   protected abstract boolean cacheTableDescriptor();
 
   protected abstract boolean clusterMode();
+
+  public void setServerName(ServerName serverName) {
+    this.serverName = serverName;
+  }
+
+  protected static boolean sleepInterrupted(long millis) {
+    boolean interrupted = false;
+    try {
+      Thread.sleep(millis);
+    } catch (InterruptedException e) {
+      LOG.warn("Interrupted while sleeping");
+      interrupted = true;
+    }
+    return interrupted;
+  }
+
+  /**
+   * Get the current master from ZooKeeper and open the RPC connection to it. To get a fresh
+   * connection, the current rssStub must be null. Method will block until a master is available.
+   * You can break from this block by requesting the server stop.
+   * @param tClass  the protobuf generated service class
+   * @param refresh If true then master address will be read from ZK, otherwise use cached data
+   * @return the BlockingInterface of protobuf generated service class
+   */
+  @InterfaceAudience.Private
+  protected synchronized <T extends org.apache.hbase.thirdparty.com.google.protobuf.Service> Object
+    createMasterStub(Class<T> tClass, boolean refresh) {
+    ServerName sn;
+    long previousLogTime = 0;
+    boolean interrupted = false;
+    try {
+      while (keepLooping()) {
+        sn = this.masterAddressTracker.getMasterAddress(refresh);
+        if (sn == null) {
+          if (!keepLooping()) {
+            // give up with no connection.
+            LOG.debug("No master found and cluster is stopped; bailing out");
+            return null;
+          }
+          if (System.currentTimeMillis() > (previousLogTime + 1000)) {
+            LOG.debug("No master found; retry");
+            previousLogTime = System.currentTimeMillis();
+          }
+          refresh = true; // let's try pull it from ZK directly
+          if (sleepInterrupted(200)) {
+            interrupted = true;
+          }
+          continue;
+        }
+
+        // If we are on the active master, use the shortcut
+        if (this instanceof HMaster && sn.equals(getServerName())) {
+          // Wrap the shortcut in a class providing our version to the calls where it's relevant.
+          // Normally, RpcServer-based threadlocals do that.
+          if (
+            tClass.getName()
+              .equals(RegionServerStatusProtos.RegionServerStatusService.class.getName())
+          ) {
+            return new MasterRpcServicesVersionWrapper(((HMaster) this).getMasterRpcServices());
+          }
+          return ((HMaster) this).getMasterRpcServices();
+        }
+        try {
+          BlockingRpcChannel channel = this.rpcClient.createBlockingRpcChannel(sn,
+            userProvider.getCurrent(), shortOperationTimeout);
+          try {
+            Method newBlockingStubMethod =
+              tClass.getMethod("newBlockingStub", BlockingRpcChannel.class);
+            return newBlockingStubMethod.invoke(null, channel);
+          } catch (IllegalArgumentException | IllegalAccessException | InvocationTargetException
+            | NoSuchMethodException ite) {
+            LOG.error("Unable to create class {}, master is {}", tClass.getName(), sn, ite);
+            return null;
+          }
+        } catch (IOException e) {
+          if (System.currentTimeMillis() > (previousLogTime + 1000)) {
+            e = e instanceof RemoteException ? ((RemoteException) e).unwrapRemoteException() : e;
+            if (e instanceof ServerNotRunningYetException) {
+              LOG.info("Master {} isn't available yet, retrying", sn);
+            } else {
+              LOG.warn("Unable to connect to master {} . Retrying. Error was:", sn, e);
+            }
+            previousLogTime = System.currentTimeMillis();
+          }
+          if (sleepInterrupted(200)) {
+            interrupted = true;
+          }
+        }
+      }
+    } finally {
+      if (interrupted) {
+        Thread.currentThread().interrupt();
+      }
+    }
+    return null;
+  }
+
+  /**
+   * @return True if we should break loop because cluster is going down or this server has been
+   *         stopped or hdfs has gone bad.
+   */
+  private boolean keepLooping() {
+    return !this.stopped && isClusterUp();
+  }
+
+  /**
+   * Utility for constructing an instance of the passed HBaseServerBase subclass.
+   */
+  protected static HBaseServerBase constructServer(
+    final Class<? extends HBaseServerBase> serverClass, final Configuration conf) throws Exception {
+    Constructor<? extends HBaseServerBase> c = serverClass.getConstructor(Configuration.class);
+    return c.newInstance(conf);
+  }
+
 }

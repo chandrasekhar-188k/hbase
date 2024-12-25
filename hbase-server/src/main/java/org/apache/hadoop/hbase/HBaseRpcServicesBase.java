@@ -214,6 +214,10 @@ public abstract class HBaseRpcServicesBase<S extends HBaseServerBase<?>>
     rpcServer.stop();
   }
 
+  protected void stop() {
+    rpcServer.stop();
+  }
+
   public Configuration getConfiguration() {
     return server.getConfiguration();
   }
@@ -385,4 +389,5 @@ public abstract class HBaseRpcServicesBase<S extends HBaseServerBase<?>>
     }
     throw new ServiceException("Invalid request params");
   }
+
 }

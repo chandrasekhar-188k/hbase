@@ -1449,7 +1449,8 @@ public class RSRpcServices extends HBaseRpcServicesBase<HRegionServer>
     internalStart(zkWatcher);
   }
 
-  void stop() {
+  @Override
+  public void stop() {
     closeAllScanners();
     internalStop();
   }

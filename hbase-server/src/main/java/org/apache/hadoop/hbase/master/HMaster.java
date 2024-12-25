@@ -141,6 +141,7 @@ import org.apache.hadoop.hbase.master.cleaner.HFileCleaner;
 import org.apache.hadoop.hbase.master.cleaner.LogCleaner;
 import org.apache.hadoop.hbase.master.cleaner.ReplicationBarrierCleaner;
 import org.apache.hadoop.hbase.master.cleaner.SnapshotCleanerChore;
+import org.apache.hadoop.hbase.master.compaction.CompactionServerManager;
 import org.apache.hadoop.hbase.master.hbck.HbckChore;
 import org.apache.hadoop.hbase.master.http.MasterDumpServlet;
 import org.apache.hadoop.hbase.master.http.MasterRedirectServlet;
@@ -364,6 +365,8 @@ public class HMaster extends HBaseServerBase<MasterRpcServices> implements Maste
   // server manager to deal with region server info
   private volatile ServerManager serverManager;
 
+  private volatile CompactionServerManager compactionServerManager;
+
   // manager of assignment nodes in zookeeper
   private AssignmentManager assignmentManager;
 
@@ -534,7 +537,7 @@ public class HMaster extends HBaseServerBase<MasterRpcServices> implements Maste
       // Hack! Maps DFSClient => Master for logs. HDFS made this
       // config param for task trackers, but we can piggyback off of it.
       if (this.conf.get("mapreduce.task.attempt.id") == null) {
-        this.conf.set("mapreduce.task.attempt.id", "hb_m_" + this.serverName.toString());
+        this.conf.set("mapreduce.task.attempt.id", "hb_m_" + getServerName().toString());
       }
 
       this.metricsMaster = new MetricsMaster(new MetricsMasterWrapperImpl(this));
@@ -565,7 +568,7 @@ public class HMaster extends HBaseServerBase<MasterRpcServices> implements Maste
           getChoreService().scheduleChore(clusterStatusPublisherChore);
         }
       }
-      this.activeMasterManager = createActiveMasterManager(zooKeeper, serverName, this);
+      this.activeMasterManager = createActiveMasterManager(zooKeeper, getServerName(), this);
       cachedClusterId = new CachedClusterId(this, conf);
       this.regionServerTracker = new RegionServerTracker(zooKeeper, this);
       this.rpcServices.start(zooKeeper);
@@ -853,7 +856,7 @@ public class HMaster extends HBaseServerBase<MasterRpcServices> implements Maste
     boolean wasUp = this.clusterStatusTracker.isClusterUp();
     if (!wasUp) this.clusterStatusTracker.setClusterUp();
 
-    LOG.info("Active/primary master=" + this.serverName + ", sessionid=0x"
+    LOG.info("Active/primary master=" + getServerName() + ", sessionid=0x"
       + Long.toHexString(this.zooKeeper.getRecoverableZooKeeper().getSessionId())
       + ", setting cluster-up flag (Was=" + wasUp + ")");
 
@@ -1005,6 +1008,7 @@ public class HMaster extends HBaseServerBase<MasterRpcServices> implements Maste
 
     // Initialize the ServerManager and register it as a configuration observer
     this.serverManager = createServerManager(this, rsListStorage);
+    this.compactionServerManager = createCompactionServerManager(this);
     this.configurationManager.registerObserver(this.serverManager);
 
     this.syncReplicationReplayWALManager = new SyncReplicationReplayWALManager(this);
@@ -1550,6 +1554,10 @@ public class HMaster extends HBaseServerBase<MasterRpcServices> implements Maste
     return new ServerManager(master, storage);
   }
 
+  private CompactionServerManager createCompactionServerManager(final MasterServices master) {
+    return new CompactionServerManager(master);
+  }
+
   private void waitForRegionServers(final MonitoredTask status)
     throws IOException, InterruptedException {
     this.serverManager.waitForRegionServers(status);
@@ -1602,6 +1610,11 @@ public class HMaster extends HBaseServerBase<MasterRpcServices> implements Maste
   @Override
   public ServerManager getServerManager() {
     return this.serverManager;
+  }
+
+  @Override
+  public CompactionServerManager getCompactionServerManager() {
+    return this.compactionServerManager;
   }
 
   @Override
@@ -2375,7 +2388,7 @@ public class HMaster extends HBaseServerBase<MasterRpcServices> implements Maste
         return;
       }
       // TODO: deal with table on master for rs group.
-      if (dest.equals(serverName)) {
+      if (dest.equals(getServerName())) {
         // To avoid unnecessary region moving later by balancer. Don't put user
         // regions on master.
         LOG.debug("Skipping move of region " + hri.getRegionNameAsString()
@@ -2499,7 +2512,7 @@ public class HMaster extends HBaseServerBase<MasterRpcServices> implements Maste
 
   private void startActiveMasterManager(int infoPort) throws KeeperException {
     String backupZNode = ZNodePaths.joinZNode(zooKeeper.getZNodePaths().backupMasterAddressesZNode,
-      serverName.toString());
+      getServerName().toString());
     /*
      * Add a ZNode for ourselves in the backup master directory since we may not become the active
      * master. If so, we want the actual active master to know we are backup masters, so that it
@@ -2508,8 +2521,8 @@ public class HMaster extends HBaseServerBase<MasterRpcServices> implements Maste
      * delete this node for us since it is ephemeral.
      */
     LOG.info("Adding backup master ZNode " + backupZNode);
-    if (!MasterAddressTracker.setMasterAddress(zooKeeper, backupZNode, serverName, infoPort)) {
-      LOG.warn("Failed create of " + backupZNode + " by " + serverName);
+    if (!MasterAddressTracker.setMasterAddress(zooKeeper, backupZNode, getServerName(), infoPort)) {
+      LOG.warn("Failed create of " + backupZNode + " by " + getServerName());
     }
     this.activeMasterManager.setInfoPort(infoPort);
     int timeout = conf.getInt(HConstants.ZK_SESSION_TIMEOUT, HConstants.DEFAULT_ZK_SESSION_TIMEOUT);
@@ -3189,11 +3202,23 @@ public class HMaster extends HBaseServerBase<MasterRpcServices> implements Maste
       : port;
   }
 
+  public int getCompactionServerInfoPort(final ServerName sn) {
+    int port = this.compactionServerManager.getInfoPort(sn);
+    return port == 0
+      ? conf.getInt(HConstants.COMPACTION_SERVER_PORT, HConstants.DEFAULT_COMPACTION_SERVER_PORT)
+      : port;
+  }
+
   @Override
   public String getRegionServerVersion(ServerName sn) {
     // Will return "0.0.0" if the server is not online to prevent move system region to unknown
     // version RS.
     return this.serverManager.getVersion(sn);
+  }
+
+  @Override
+  public String getCompactionServerVersion(ServerName sn) {
+    return this.compactionServerManager.getVersion(sn);
   }
 
   @Override
@@ -3245,11 +3270,6 @@ public class HMaster extends HBaseServerBase<MasterRpcServices> implements Maste
   @Override
   public ProcedureExecutor<MasterProcedureEnv> getMasterProcedureExecutor() {
     return procedureExecutor;
-  }
-
-  @Override
-  public ServerName getServerName() {
-    return this.serverName;
   }
 
   @Override

@@ -191,6 +191,9 @@ import org.apache.hadoop.hbase.shaded.protobuf.generated.AdminProtos.WarmupRegio
 import org.apache.hadoop.hbase.shaded.protobuf.generated.ClientProtos;
 import org.apache.hadoop.hbase.shaded.protobuf.generated.ClusterStatusProtos;
 import org.apache.hadoop.hbase.shaded.protobuf.generated.ClusterStatusProtos.RegionStoreSequenceIds;
+import org.apache.hadoop.hbase.shaded.protobuf.generated.CompactionServerStatusProtos.CompactionServerReportRequest;
+import org.apache.hadoop.hbase.shaded.protobuf.generated.CompactionServerStatusProtos.CompactionServerReportResponse;
+import org.apache.hadoop.hbase.shaded.protobuf.generated.CompactionServerStatusProtos.CompactionServerStatusService;
 import org.apache.hadoop.hbase.shaded.protobuf.generated.HBaseProtos;
 import org.apache.hadoop.hbase.shaded.protobuf.generated.HBaseProtos.NameStringPair;
 import org.apache.hadoop.hbase.shaded.protobuf.generated.HBaseProtos.ProcedureDescription;
@@ -453,7 +456,8 @@ import org.apache.hadoop.hbase.shaded.protobuf.generated.VisibilityLabelsProtos.
 @InterfaceAudience.Private
 public class MasterRpcServices extends HBaseRpcServicesBase<HMaster>
   implements MasterService.BlockingInterface, RegionServerStatusService.BlockingInterface,
-  LockService.BlockingInterface, HbckService.BlockingInterface {
+  LockService.BlockingInterface, HbckService.BlockingInterface,
+  CompactionServerStatusService.BlockingInterface {
 
   private static final Logger LOG = LoggerFactory.getLogger(MasterRpcServices.class.getName());
   private static final Logger AUDITLOG =
@@ -596,6 +600,9 @@ public class MasterRpcServices extends HBaseRpcServicesBase<HMaster>
       ClientMetaService.BlockingInterface.class));
     bssi.add(new BlockingServiceAndInterface(AdminService.newReflectiveBlockingService(this),
       AdminService.BlockingInterface.class));
+    bssi.add(new BlockingServiceAndInterface(
+      CompactionServerStatusService.newReflectiveBlockingService(this),
+      CompactionServerStatusService.BlockingInterface.class));
     return bssi;
   }
 
@@ -603,7 +610,8 @@ public class MasterRpcServices extends HBaseRpcServicesBase<HMaster>
     internalStart(zkWatcher);
   }
 
-  void stop() {
+  @Override
+  protected void stop() {
     internalStop();
   }
 
@@ -700,6 +708,28 @@ public class MasterRpcServices extends HBaseRpcServicesBase<HMaster>
     LOG.warn(msg);
     server.rsFatals.add(msg);
     return ReportRSFatalErrorResponse.newBuilder().build();
+  }
+
+  @Override
+  public CompactionServerReportResponse compactionServerReport(RpcController controller,
+    CompactionServerReportRequest request) throws ServiceException {
+    try {
+      server.checkServiceStarted();
+      int versionNumber = 0;
+      String version = "0.0.0";
+      VersionInfo versionInfo = VersionInfoUtil.getCurrentClientVersionInfo();
+      if (versionInfo != null) {
+        version = versionInfo.getVersion();
+        versionNumber = VersionInfoUtil.getVersionNumber(versionInfo);
+      }
+      ServerName serverName = ProtobufUtil.toServerName(request.getServer());
+      ServerMetrics newLoad = ServerMetricsBuilder.toServerMetrics(serverName, versionNumber,
+        version, ClusterStatusProtos.ServerLoad.newBuilder().build());
+      server.getCompactionServerManager().compactionServerReport(serverName, newLoad);
+    } catch (IOException ioe) {
+      throw new ServiceException(ioe);
+    }
+    return CompactionServerReportResponse.newBuilder().build();
   }
 
   @Override
