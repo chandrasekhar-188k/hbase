@@ -860,7 +860,7 @@ public class HBaseTestingUtil extends HBaseZKTestingUtil {
     Configuration c = new Configuration(this.conf);
     this.hbaseCluster = new SingleProcessHBaseCluster(c, option.getNumMasters(),
       option.getNumAlwaysStandByMasters(), option.getNumRegionServers(), option.getRsPorts(),
-      option.getMasterClass(), option.getRsClass());
+      option.getNumCompactionServers(), option.getMasterClass(), option.getRsClass());
     // Populate the master address configuration from mini cluster configuration.
     conf.set(HConstants.MASTER_ADDRS_KEY, MasterRegistry.getMasterAddr(c));
     // Don't leave here till we've done a successful scan of the hbase:meta
@@ -984,7 +984,7 @@ public class HBaseTestingUtil extends HBaseZKTestingUtil {
     closeConnection();
     this.hbaseCluster = new SingleProcessHBaseCluster(this.conf, option.getNumMasters(),
       option.getNumAlwaysStandByMasters(), option.getNumRegionServers(), option.getRsPorts(),
-      option.getMasterClass(), option.getRsClass());
+      option.getNumCompactionServers(), option.getMasterClass(), option.getRsClass());
     // Don't leave here till we've done a successful scan of the hbase:meta
     Connection conn = ConnectionFactory.createConnection(this.conf);
     Table t = conn.getTable(TableName.META_TABLE_NAME);

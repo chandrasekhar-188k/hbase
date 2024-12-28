@@ -26,6 +26,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.HConstants;
+import org.apache.hadoop.hbase.compactionserver.HCompactionServer;
 import org.apache.hadoop.hbase.master.HMaster;
 import org.apache.hadoop.hbase.regionserver.HRegionServer;
 import org.apache.yetus.audience.InterfaceAudience;
@@ -94,6 +95,51 @@ public class JVMClusterUtil {
   }
 
   /**
+   * Datastructure to hold CompactionServer Thread and CompactionServer instance
+   */
+  public static class CompactionServerThread extends Thread {
+    private final HCompactionServer compactionServer;
+
+    public CompactionServerThread(final HCompactionServer cs, final int index) {
+      super(cs, "CS:" + index + ";" + cs.getServerName().toShortString());
+      this.compactionServer = cs;
+    }
+
+    /** Returns the compaction server */
+    public HCompactionServer getCompactionServer() {
+      return this.compactionServer;
+    }
+
+    /**
+     * Block until the compaction server has come online, indicating it is ready to be used.
+     */
+    public void waitForServerOnline() {
+      // The server is marked online after the init method completes inside of
+      // the HCS#run method. HCS#init can fail for whatever region. In those
+      // cases, we'll jump out of the run without setting online flag. Check
+      // stopRequested so we don't wait here a flag that will never be flipped.
+      compactionServer.waitForServerOnline();
+    }
+  }
+
+  /**
+   * Creates a {@link CompactionServerThread}. Call 'start' on the returned thread to make it run.
+   * @param c     Configuration to use.
+   * @param index Used distinguishing the object returned.
+   * @return Compaction server added.
+   */
+  public static JVMClusterUtil.CompactionServerThread
+    createCompactionServerThread(final Configuration c, final int index) throws IOException {
+    HCompactionServer server;
+    try {
+      server = new HCompactionServer(c);
+    } catch (Exception e) {
+      throw new IOException(e);
+    }
+    return new JVMClusterUtil.CompactionServerThread(server, index);
+  }
+
+  /**
    * Datastructure to hold Master Thread and Master instance
    */
   public static class MasterThread extends Thread {
@@ -153,7 +199,8 @@ public class JVMClusterUtil {
    * @return Address to use contacting primary master.
    */
   public static String startup(final List<JVMClusterUtil.MasterThread> masters,
-    final List<JVMClusterUtil.RegionServerThread> regionservers) throws IOException {
+    final List<JVMClusterUtil.RegionServerThread> regionservers,
+    final List<JVMClusterUtil.CompactionServerThread> compactionservers) throws IOException {
     // Implementation note: This method relies on timed sleeps in a loop. It's not great, and
     // should probably be re-written to use actual synchronization objects, but it's ok for now
 
@@ -182,6 +229,11 @@ public class JVMClusterUtil {
       }
     }
 
+    if (compactionservers != null) {
+      for (JVMClusterUtil.CompactionServerThread t : compactionservers) {
+        t.start();
+      }
+    }
     // Wait for an active master to be initialized (implies being master)
     // with this, when we return the cluster is complete
     final int initTimeout = configuration != null

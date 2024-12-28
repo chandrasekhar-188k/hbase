@@ -27,6 +27,7 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.hbase.client.RegionInfoBuilder;
 import org.apache.hadoop.hbase.client.RegionReplicaUtil;
+import org.apache.hadoop.hbase.compactionserver.HCompactionServer;
 import org.apache.hadoop.hbase.master.HMaster;
 import org.apache.hadoop.hbase.regionserver.HRegion;
 import org.apache.hadoop.hbase.regionserver.HRegion.FlushResult;
@@ -90,7 +91,7 @@ public class SingleProcessHBaseCluster extends HBaseClusterInterface {
     Class<? extends HMaster> masterClass,
     Class<? extends SingleProcessHBaseCluster.MiniHBaseClusterRegionServer> regionserverClass)
     throws IOException, InterruptedException {
-    this(conf, numMasters, 0, numRegionServers, null, masterClass, regionserverClass);
+    this(conf, numMasters, 0, numRegionServers, null, 0, masterClass, regionserverClass);
   }
 
   /**
@@ -100,7 +101,8 @@ public class SingleProcessHBaseCluster extends HBaseClusterInterface {
    *                ports on each cluster start.
    */
   public SingleProcessHBaseCluster(Configuration conf, int numMasters, int numAlwaysStandByMasters,
-    int numRegionServers, List<Integer> rsPorts, Class<? extends HMaster> masterClass,
+    int numRegionServers, List<Integer> rsPorts, int numCompactionServers,
+    Class<? extends HMaster> masterClass,
     Class<? extends SingleProcessHBaseCluster.MiniHBaseClusterRegionServer> regionserverClass)
     throws IOException, InterruptedException {
     super(conf);
@@ -108,8 +110,8 @@ public class SingleProcessHBaseCluster extends HBaseClusterInterface {
     // Hadoop 2
     CompatibilityFactory.getInstance(MetricsAssertHelper.class).init();
 
-    init(numMasters, numAlwaysStandByMasters, numRegionServers, rsPorts, masterClass,
-      regionserverClass);
+    init(numMasters, numAlwaysStandByMasters, numRegionServers, rsPorts, numCompactionServers,
+      masterClass, regionserverClass);
     this.initialClusterStatus = getClusterMetrics();
   }
 
@@ -217,8 +219,9 @@ public class SingleProcessHBaseCluster extends HBaseClusterInterface {
   }
 
   private void init(final int nMasterNodes, final int numAlwaysStandByMasters,
-    final int nRegionNodes, List<Integer> rsPorts, Class<? extends HMaster> masterClass,
-    Class<? extends SingleProcessHBaseCluster.MiniHBaseClusterRegionServer> regionserverClass)
+    final int nRegionNodes, List<Integer> rsPorts, int numCompactionServers,
+    Class<? extends HMaster> masterClass,
+    Class<? extends MiniHBaseClusterRegionServer> regionserverClass)
     throws IOException, InterruptedException {
     try {
       if (masterClass == null) {
@@ -240,6 +243,13 @@ public class SingleProcessHBaseCluster extends HBaseClusterInterface {
         }
         User user = HBaseTestingUtil.getDifferentUser(rsConf, ".hfs." + index++);
         hbaseCluster.addRegionServer(rsConf, i, user);
+      }
+
+      // manually add the compaction servers as other users
+      for (int i = 0; i < numCompactionServers; i++) {
+        Configuration csConf = HBaseConfiguration.create(conf);
+        User user = HBaseTestingUtil.getDifferentUser(csConf, ".hfs." + index++);
+        hbaseCluster.addCompactionServer(csConf, i, user);
       }
 
       hbaseCluster.startup();
@@ -918,5 +928,35 @@ public class SingleProcessHBaseCluster extends HBaseClusterInterface {
       }
     }
     return -1;
+  }
+
+  /** Returns Number of live compaction servers in the cluster currently. */
+  public int getNumLiveCompactionServers() {
+    return this.hbaseCluster.getLiveCompactionServers().size();
+  }
+
+  /** Returns List of compaction server threads. */
+  public List<JVMClusterUtil.CompactionServerThread> getCompactionServerThreads() {
+    return this.hbaseCluster.getCompactionServers();
+  }
+
+  /** Returns List of live compaction server threads (skips the aborted and the killed) */
+  public List<JVMClusterUtil.CompactionServerThread> getLiveCompactionServerThreads() {
+    return this.hbaseCluster.getLiveCompactionServers();
+  }
+
+  /**
+   * Grab a numbered compaction server of your choice.
+   * @param serverNumber server number
+   * @return compaction server
+   */
+  public HCompactionServer getCompactionServer(int serverNumber) {
+    return hbaseCluster.getCompactionServer(serverNumber);
+  }
+
+  public HCompactionServer getCompactionServer(ServerName serverName) {
+    return hbaseCluster.getCompactionServers().stream()
+      .map(JVMClusterUtil.CompactionServerThread::getCompactionServer)
+      .filter(cs -> cs.getServerName().equals(serverName)).findFirst().orElse(null);
   }
 }

@@ -229,6 +229,36 @@ public abstract class HBaseServerBase<R extends HBaseRpcServicesBase<?>> extends
    */
   protected final boolean masterless;
 
+  // flag set after we're done setting up server threads
+  protected final AtomicBoolean online = new AtomicBoolean(false);
+
+  public AtomicBoolean getOnline() {
+    return online;
+  }
+
+  /**
+   * Report the status of the server. A server is online once all the startup is completed (setting
+   * up filesystem, starting executorService threads, etc.). This method is designed mostly to be
+   * useful in tests.
+   * @return true if online, false if not.
+   */
+  public boolean isOnline() {
+    return online.get();
+  }
+
+  public void waitForServerOnline() {
+    while (!isStopped() && !isOnline()) {
+      synchronized (online) {
+        try {
+          online.wait(msgInterval);
+        } catch (InterruptedException ie) {
+          Thread.currentThread().interrupt();
+          break;
+        }
+      }
+    }
+  }
+
   private void setupSignalHandlers() {
     if (!SystemUtils.IS_OS_WINDOWS) {
       HBasePlatformDependent.handle("HUP", (number, name) -> {
@@ -923,7 +953,7 @@ public abstract class HBaseServerBase<R extends HBaseRpcServicesBase<?>> extends
    * @return True if we should break loop because cluster is going down or this server has been
    *         stopped or hdfs has gone bad.
    */
-  private boolean keepLooping() {
+  protected boolean keepLooping() {
     return !this.stopped && isClusterUp();
   }
 

@@ -221,13 +221,28 @@ public class HCompactionServer extends HBaseServerBase {
       abort("Fatal exception during initialization", e);
     }
     try {
+      if (!isStopped() && !isAborted()) {
+        while (keepLooping()) {
+          createCompactionServerStatusStub();
+          if (cssStub == null) {
+            this.sleeper.sleep(100);
+          } else {
+            break;
+          }
+        }
+      }
       // We registered with the Master. Go into run mode.
       long lastMsg = System.currentTimeMillis();
       // The main run loop.
       while (!isStopped()) {
         long now = System.currentTimeMillis();
         if ((now - lastMsg) >= msgInterval) {
-          tryCompactionServerReport();
+          if (tryCompactionServerReport() && !online.get()) {
+            synchronized (online) {
+              online.set(true);
+              online.notifyAll();
+            }
+          }
           lastMsg = System.currentTimeMillis();
         }
         if (!isStopped()) {

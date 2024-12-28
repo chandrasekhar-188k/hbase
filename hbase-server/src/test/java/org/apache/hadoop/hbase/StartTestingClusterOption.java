@@ -106,13 +106,18 @@ public final class StartTestingClusterOption {
   private final boolean createWALDir;
 
   /**
+   * Number of compaction servers to start up.
+   */
+  private final int numCompactionServers;
+
+  /**
    * Private constructor. Use {@link Builder#build()}.
    */
   private StartTestingClusterOption(int numMasters, int numAlwaysStandByMasters,
     Class<? extends HMaster> masterClass, int numRegionServers, List<Integer> rsPorts,
     Class<? extends SingleProcessHBaseCluster.MiniHBaseClusterRegionServer> rsClass,
-    int numDataNodes, String[] dataNodeHosts, int numZkServers, boolean createRootDir,
-    boolean createWALDir) {
+    int numCompactionServers, int numDataNodes, String[] dataNodeHosts, int numZkServers,
+    boolean createRootDir, boolean createWALDir) {
     this.numMasters = numMasters;
     this.numAlwaysStandByMasters = numAlwaysStandByMasters;
     this.masterClass = masterClass;
@@ -124,6 +129,7 @@ public final class StartTestingClusterOption {
     this.numZkServers = numZkServers;
     this.createRootDir = createRootDir;
     this.createWALDir = createWALDir;
+    this.numCompactionServers = numCompactionServers;
   }
 
   public int getNumMasters() {
@@ -170,13 +176,18 @@ public final class StartTestingClusterOption {
     return createWALDir;
   }
 
+  public int getNumCompactionServers() {
+    return numCompactionServers;
+  }
+
   @Override
   public String toString() {
     return "StartMiniClusterOption{" + "numMasters=" + numMasters + ", masterClass=" + masterClass
       + ", numRegionServers=" + numRegionServers + ", rsPorts=" + StringUtils.join(rsPorts)
-      + ", rsClass=" + rsClass + ", numDataNodes=" + numDataNodes + ", dataNodeHosts="
-      + Arrays.toString(dataNodeHosts) + ", numZkServers=" + numZkServers + ", createRootDir="
-      + createRootDir + ", createWALDir=" + createWALDir + '}';
+      + ", rsClass=" + rsClass + ", numCompactionServers=" + numCompactionServers
+      + ", numDataNodes=" + numDataNodes + ", dataNodeHosts=" + Arrays.toString(dataNodeHosts)
+      + ", numZkServers=" + numZkServers + ", createRootDir=" + createRootDir + ", createWALDir="
+      + createWALDir + '}';
   }
 
   /**
@@ -204,6 +215,7 @@ public final class StartTestingClusterOption {
     private int numZkServers = 1;
     private boolean createRootDir = false;
     private boolean createWALDir = false;
+    private int numCompactionServers;
 
     private Builder() {
     }
@@ -213,8 +225,8 @@ public final class StartTestingClusterOption {
         numDataNodes = dataNodeHosts.length;
       }
       return new StartTestingClusterOption(numMasters, numAlwaysStandByMasters, masterClass,
-        numRegionServers, rsPorts, rsClass, numDataNodes, dataNodeHosts, numZkServers,
-        createRootDir, createWALDir);
+        numRegionServers, rsPorts, rsClass, numCompactionServers, numDataNodes, dataNodeHosts,
+        numZkServers, createRootDir, createWALDir);
     }
 
     public Builder numMasters(int numMasters) {
@@ -276,6 +288,12 @@ public final class StartTestingClusterOption {
       this.createWALDir = createWALDir;
       return this;
     }
+
+    public Builder numCompactionServers(int numCompactionServers) {
+      this.numCompactionServers = numCompactionServers;
+      return this;
+    }
+
   }
 
 }

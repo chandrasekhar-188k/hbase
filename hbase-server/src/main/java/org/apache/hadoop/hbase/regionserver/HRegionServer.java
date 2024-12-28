@@ -63,7 +63,6 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
@@ -362,9 +361,6 @@ public class HRegionServer extends HBaseServerBase<RSRpcServices>
 
   // A thread which calls reportProcedureDone
   private RemoteProcedureResultReporter procedureResultReporter;
-
-  // flag set after we're done setting up server threads
-  final AtomicBoolean online = new AtomicBoolean(false);
 
   // master address tracker
   private final MasterAddressTracker masterAddressTracker;
@@ -1656,16 +1652,6 @@ public class HRegionServer extends HBaseServerBase<RSRpcServices>
   }
 
   /**
-   * Report the status of the server. A server is online once all the startup is completed (setting
-   * up filesystem, starting executorService threads, etc.). This method is designed mostly to be
-   * useful in tests.
-   * @return true if online, false if not.
-   */
-  public boolean isOnline() {
-    return online.get();
-  }
-
-  /**
    * Setup WAL log and replication if enabled. Replication setup is done in here because it wants to
    * be hooked up to WAL.
    */
@@ -2106,19 +2092,6 @@ public class HRegionServer extends HBaseServerBase<RSRpcServices>
     }
   }
 
-  public void waitForServerOnline() {
-    while (!isStopped() && !isOnline()) {
-      synchronized (online) {
-        try {
-          online.wait(msgInterval);
-        } catch (InterruptedException ie) {
-          Thread.currentThread().interrupt();
-          break;
-        }
-      }
-    }
-  }
-
   @Override
   public void postOpenDeployTasks(final PostOpenDeployContext context) throws IOException {
     HRegion r = context.getRegion();
@@ -2469,14 +2442,6 @@ public class HRegionServer extends HBaseServerBase<RSRpcServices>
     if (lockStub == null) {
       lockStub = (LockService.BlockingInterface) createMasterStub(LockService.class, refresh);
     }
-  }
-
-  /**
-   * @return True if we should break loop because cluster is going down or this server has been
-   *         stopped or hdfs has gone bad.
-   */
-  private boolean keepLooping() {
-    return !this.stopped && isClusterUp();
   }
 
   /*

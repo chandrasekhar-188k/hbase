@@ -1931,13 +1931,13 @@ public class RSRpcServices extends HBaseRpcServicesBase<HRegionServer>
       int timeout = server.getConfiguration().getInt(HConstants.HBASE_RPC_TIMEOUT_KEY,
         HConstants.DEFAULT_HBASE_RPC_TIMEOUT) >> 2;
       long endTime = EnvironmentEdgeManager.currentTime() + timeout;
-      synchronized (server.online) {
+      synchronized (server.getOnline()) {
         try {
           while (
             EnvironmentEdgeManager.currentTime() <= endTime && !server.isStopped()
               && !server.isOnline()
           ) {
-            server.online.wait(server.getMsgInterval());
+            server.getOnline().wait(server.getMsgInterval());
           }
           checkOpen();
         } catch (InterruptedException t) {
