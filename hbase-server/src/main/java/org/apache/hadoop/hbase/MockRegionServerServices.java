@@ -48,6 +48,7 @@ import org.apache.hadoop.hbase.regionserver.HeapMemoryManager;
 import org.apache.hadoop.hbase.regionserver.LeaseManager;
 import org.apache.hadoop.hbase.regionserver.MetricsRegionServer;
 import org.apache.hadoop.hbase.regionserver.RegionServerAccounting;
+import org.apache.hadoop.hbase.regionserver.RegionServerCompactionOffloadManager;
 import org.apache.hadoop.hbase.regionserver.RegionServerServices;
 import org.apache.hadoop.hbase.regionserver.ReplicationSourceService;
 import org.apache.hadoop.hbase.regionserver.SecureBulkLoadManager;
@@ -185,6 +186,11 @@ public class MockRegionServerServices implements RegionServerServices {
 
   @Override
   public RegionServerRpcQuotaManager getRegionServerRpcQuotaManager() {
+    return null;
+  }
+
+  @Override
+  public RegionServerCompactionOffloadManager getRegionServerCompactionOffloadManager() {
     return null;
   }
 

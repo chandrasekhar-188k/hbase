@@ -420,6 +420,7 @@ public class HRegionServer extends HBaseServerBase<RSRpcServices>
 
   private volatile RegionServerCoprocessorHost rsHost;
 
+  private RegionServerCompactionOffloadManager regionServerCompactionOffloadManager;
   private RegionServerRpcQuotaManager rsQuotaManager;
   private RegionServerSpaceQuotaManager rsSpaceQuotaManager;
 
@@ -1286,7 +1287,7 @@ public class HRegionServer extends HBaseServerBase<RSRpcServices>
           String hostnameFromMasterPOV = e.getValue();
           setServerName(ServerName.valueOf(hostnameFromMasterPOV,
             rpcServices.getSocketAddress().getPort(), this.startcode));
-          getServerName() = ServerName.valueOf(hostnameFromMasterPOV,
+          this.serverName = ServerName.valueOf(hostnameFromMasterPOV,
             rpcServices.getSocketAddress().getPort(), this.startcode);
           String expectedHostName = rpcServices.getSocketAddress().getHostName();
           // if Master use-ip is enabled, RegionServer use-ip will be enabled by default even if it
@@ -1846,6 +1847,12 @@ public class HRegionServer extends HBaseServerBase<RSRpcServices>
     executorService.startExecutorService(executorService.new ExecutorConfig()
       .setExecutorType(ExecutorType.RS_FLUSH_OPERATIONS).setCorePoolSize(rsFlushOperationThreads));
 
+    final int switchCompactionOffloadThreads =
+      conf.getInt("hbase.regionserver.executor.switch.compaction.offload.threads", 1);
+    executorService.startExecutorService(executorService.new ExecutorConfig()
+      .setExecutorType(ExecutorType.RS_SWITCH_COMPACTION_OFFLOAD)
+      .setCorePoolSize(switchCompactionOffloadThreads));
+
     Threads.setDaemonThreadRunning(this.walRoller, getName() + ".logRoller",
       uncaughtExceptionHandler);
     if (this.cacheFlusher != null) {
@@ -1960,6 +1967,7 @@ public class HRegionServer extends HBaseServerBase<RSRpcServices>
       // Create the scheduled chore that cleans up nonces.
       nonceManagerChore = this.nonceManager.createCleanupScheduledChore(this);
     }
+    regionServerCompactionOffloadManager = new RegionServerCompactionOffloadManager(this);
 
     // Setup the Quota Manager
     rsQuotaManager = new RegionServerRpcQuotaManager(this);
@@ -2694,6 +2702,11 @@ public class HRegionServer extends HBaseServerBase<RSRpcServices>
     return rsQuotaManager;
   }
 
+  @Override
+  public RegionServerCompactionOffloadManager getRegionServerCompactionOffloadManager() {
+    return regionServerCompactionOffloadManager;
+  }
+
   //
   // Main program and support routines
   //
@@ -3113,7 +3126,7 @@ public class HRegionServer extends HBaseServerBase<RSRpcServices>
     private final long seqNum;
 
     MovedRegionInfo(ServerName serverName, long closeSeqNum) {
-      getServerName() = serverName;
+      this.serverName = serverName;
       this.seqNum = closeSeqNum;
     }
 

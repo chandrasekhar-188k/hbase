@@ -575,6 +575,8 @@ Shell.load_command_group(
     list_snapshot_sizes
     enable_rpc_throttle
     disable_rpc_throttle
+    enable_compaction_offload
+    disable_compaction_offload
     enable_exceed_throttle_quota
     disable_exceed_throttle_quota
   ]

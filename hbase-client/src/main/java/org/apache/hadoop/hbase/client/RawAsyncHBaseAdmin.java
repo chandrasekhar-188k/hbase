@@ -210,6 +210,8 @@ import org.apache.hadoop.hbase.shaded.protobuf.generated.MasterProtos.IsCatalogJ
 import org.apache.hadoop.hbase.shaded.protobuf.generated.MasterProtos.IsCatalogJanitorEnabledResponse;
 import org.apache.hadoop.hbase.shaded.protobuf.generated.MasterProtos.IsCleanerChoreEnabledRequest;
 import org.apache.hadoop.hbase.shaded.protobuf.generated.MasterProtos.IsCleanerChoreEnabledResponse;
+import org.apache.hadoop.hbase.shaded.protobuf.generated.MasterProtos.IsCompactionOffloadEnabledRequest;
+import org.apache.hadoop.hbase.shaded.protobuf.generated.MasterProtos.IsCompactionOffloadEnabledResponse;
 import org.apache.hadoop.hbase.shaded.protobuf.generated.MasterProtos.IsInMaintenanceModeRequest;
 import org.apache.hadoop.hbase.shaded.protobuf.generated.MasterProtos.IsInMaintenanceModeResponse;
 import org.apache.hadoop.hbase.shaded.protobuf.generated.MasterProtos.IsNormalizerEnabledRequest;
@@ -288,6 +290,8 @@ import org.apache.hadoop.hbase.shaded.protobuf.generated.MasterProtos.SplitTable
 import org.apache.hadoop.hbase.shaded.protobuf.generated.MasterProtos.SplitTableRegionResponse;
 import org.apache.hadoop.hbase.shaded.protobuf.generated.MasterProtos.StopMasterRequest;
 import org.apache.hadoop.hbase.shaded.protobuf.generated.MasterProtos.StopMasterResponse;
+import org.apache.hadoop.hbase.shaded.protobuf.generated.MasterProtos.SwitchCompactionOffloadRequest;
+import org.apache.hadoop.hbase.shaded.protobuf.generated.MasterProtos.SwitchCompactionOffloadResponse;
 import org.apache.hadoop.hbase.shaded.protobuf.generated.MasterProtos.SwitchExceedThrottleQuotaRequest;
 import org.apache.hadoop.hbase.shaded.protobuf.generated.MasterProtos.SwitchExceedThrottleQuotaResponse;
 import org.apache.hadoop.hbase.shaded.protobuf.generated.MasterProtos.SwitchRpcThrottleRequest;
@@ -4124,6 +4128,33 @@ class RawAsyncHBaseAdmin implements AsyncAdmin {
         Boolean> call(controller, stub, IsRpcThrottleEnabledRequest.newBuilder().build(),
           (s, c, req, done) -> s.isRpcThrottleEnabled(c, req, done),
           resp -> resp.getRpcThrottleEnabled()))
+      .call();
+    return future;
+  }
+
+  @Override
+  public CompletableFuture<Boolean> switchCompactionOffload(boolean enable) {
+    CompletableFuture<
+      Boolean> future =
+        this.<Boolean> newMasterCaller()
+          .action((controller, stub) -> this.<SwitchCompactionOffloadRequest,
+            SwitchCompactionOffloadResponse, Boolean> call(controller, stub,
+              SwitchCompactionOffloadRequest.newBuilder().setCompactionOffloadEnabled(enable)
+                .build(),
+              (s, c, req, done) -> s.switchCompactionOffload(c, req, done),
+              resp -> resp.getPreviousCompactionOffloadEnabled()))
+          .call();
+    return future;
+  }
+
+  @Override
+  public CompletableFuture<Boolean> isCompactionOffloadEnabled() {
+    CompletableFuture<Boolean> future = this.<Boolean> newMasterCaller()
+      .action((controller, stub) -> this.<IsCompactionOffloadEnabledRequest,
+        IsCompactionOffloadEnabledResponse, Boolean> call(controller, stub,
+          IsCompactionOffloadEnabledRequest.newBuilder().build(),
+          (s, c, req, done) -> s.isCompactionOffloadEnabled(c, req, done),
+          resp -> resp.getCompactionOffloadEnabled()))
       .call();
     return future;
   }

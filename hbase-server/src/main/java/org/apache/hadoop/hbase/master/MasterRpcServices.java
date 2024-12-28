@@ -269,6 +269,8 @@ import org.apache.hadoop.hbase.shaded.protobuf.generated.MasterProtos.IsCatalogJ
 import org.apache.hadoop.hbase.shaded.protobuf.generated.MasterProtos.IsCatalogJanitorEnabledResponse;
 import org.apache.hadoop.hbase.shaded.protobuf.generated.MasterProtos.IsCleanerChoreEnabledRequest;
 import org.apache.hadoop.hbase.shaded.protobuf.generated.MasterProtos.IsCleanerChoreEnabledResponse;
+import org.apache.hadoop.hbase.shaded.protobuf.generated.MasterProtos.IsCompactionOffloadEnabledRequest;
+import org.apache.hadoop.hbase.shaded.protobuf.generated.MasterProtos.IsCompactionOffloadEnabledResponse;
 import org.apache.hadoop.hbase.shaded.protobuf.generated.MasterProtos.IsInMaintenanceModeRequest;
 import org.apache.hadoop.hbase.shaded.protobuf.generated.MasterProtos.IsInMaintenanceModeResponse;
 import org.apache.hadoop.hbase.shaded.protobuf.generated.MasterProtos.IsMasterRunningRequest;
@@ -355,6 +357,8 @@ import org.apache.hadoop.hbase.shaded.protobuf.generated.MasterProtos.SplitTable
 import org.apache.hadoop.hbase.shaded.protobuf.generated.MasterProtos.SplitTableRegionResponse;
 import org.apache.hadoop.hbase.shaded.protobuf.generated.MasterProtos.StopMasterRequest;
 import org.apache.hadoop.hbase.shaded.protobuf.generated.MasterProtos.StopMasterResponse;
+import org.apache.hadoop.hbase.shaded.protobuf.generated.MasterProtos.SwitchCompactionOffloadRequest;
+import org.apache.hadoop.hbase.shaded.protobuf.generated.MasterProtos.SwitchCompactionOffloadResponse;
 import org.apache.hadoop.hbase.shaded.protobuf.generated.MasterProtos.SwitchExceedThrottleQuotaRequest;
 import org.apache.hadoop.hbase.shaded.protobuf.generated.MasterProtos.SwitchExceedThrottleQuotaResponse;
 import org.apache.hadoop.hbase.shaded.protobuf.generated.MasterProtos.SwitchRpcThrottleRequest;
@@ -725,7 +729,7 @@ public class MasterRpcServices extends HBaseRpcServicesBase<HMaster>
       ServerName serverName = ProtobufUtil.toServerName(request.getServer());
       ServerMetrics newLoad = ServerMetricsBuilder.toServerMetrics(serverName, versionNumber,
         version, ClusterStatusProtos.ServerLoad.newBuilder().build());
-      server.getCompactionServerManager().compactionServerReport(serverName, newLoad);
+      server.getCompactionOffloadManager().compactionServerReport(serverName, newLoad);
     } catch (IOException ioe) {
       throw new ServiceException(ioe);
     }
@@ -3689,6 +3693,28 @@ public class MasterRpcServices extends HBaseRpcServicesBase<HMaster>
       return FlushTableResponse.newBuilder().setProcId(procId).build();
     } catch (IOException ioe) {
       throw new ServiceException(ioe);
+    }
+  }
+
+  @Override
+  public IsCompactionOffloadEnabledResponse isCompactionOffloadEnabled(RpcController controller,
+    IsCompactionOffloadEnabledRequest request) throws ServiceException {
+    try {
+      server.checkInitialized();
+      return server.getCompactionOffloadManager().isCompactionOffloadEnabled(request);
+    } catch (Exception e) {
+      throw new ServiceException(e);
+    }
+  }
+
+  @Override
+  public SwitchCompactionOffloadResponse switchCompactionOffload(RpcController controller,
+    SwitchCompactionOffloadRequest request) throws ServiceException {
+    try {
+      server.checkInitialized();
+      return server.getCompactionOffloadManager().switchCompactionOffload(request);
+    } catch (Exception e) {
+      throw new ServiceException(e);
     }
   }
 }
