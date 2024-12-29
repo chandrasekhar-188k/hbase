@@ -24,16 +24,19 @@ import java.lang.reflect.Method;
 import java.net.InetSocketAddress;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.hbase.client.AsyncClusterConnection;
 import org.apache.hadoop.hbase.client.ClusterConnectionFactory;
 import org.apache.hadoop.hbase.client.Connection;
 import org.apache.hadoop.hbase.client.ConnectionFactory;
+import org.apache.hadoop.hbase.fs.HFileSystem;
 import org.apache.hadoop.hbase.ipc.RpcClient;
 import org.apache.hadoop.hbase.ipc.ServerNotRunningYetException;
 import org.apache.hadoop.hbase.regionserver.HRegionServer;
 import org.apache.hadoop.hbase.security.Superusers;
 import org.apache.hadoop.hbase.security.User;
 import org.apache.hadoop.hbase.security.UserProvider;
+import org.apache.hadoop.hbase.util.FSUtils;
 import org.apache.hadoop.hbase.util.Sleeper;
 import org.apache.hadoop.hbase.zookeeper.ClusterStatusTracker;
 import org.apache.hadoop.hbase.zookeeper.MasterAddressTracker;
@@ -51,6 +54,8 @@ import org.apache.hbase.thirdparty.com.google.protobuf.BlockingRpcChannel;
 public abstract class AbstractServer extends Thread implements Server {
   private static final Logger LOG = LoggerFactory.getLogger(AbstractServer.class);
   protected Configuration conf;
+  protected volatile boolean dataFsOk;
+  protected HFileSystem dataFs;
   // A sleeper that sleeps for msgInterval.
   protected Sleeper sleeper;
   protected int msgInterval;
@@ -166,6 +171,7 @@ public abstract class AbstractServer extends Thread implements Server {
     super(processName); // thread name
     this.startcode = System.currentTimeMillis();
     this.conf = conf;
+    this.dataFsOk = true;
     this.masterless = conf.getBoolean(MASTERLESS_CONFIG_NAME, false);
     this.userProvider = UserProvider.instantiate(conf);
     this.shortOperationTimeout = conf.getInt(HConstants.HBASE_RPC_SHORTOPERATION_TIMEOUT_KEY,
@@ -389,6 +395,28 @@ public abstract class AbstractServer extends Thread implements Server {
         }
       }
     }
+  }
+
+  /**
+   * Checks to see if the file system is still accessible. If not, sets abortRequested and
+   * stopRequested
+   * @return false if file system is not available
+   */
+  public boolean checkFileSystem() {
+    if (this.dataFsOk && this.dataFs != null) {
+      try {
+        FSUtils.checkFileSystemAvailable(this.dataFs);
+      } catch (IOException e) {
+        abort("File System not available", e);
+        this.dataFsOk = false;
+      }
+    }
+    return this.dataFsOk;
+  }
+
+  @Override
+  public FileSystem getFileSystem() {
+    return dataFs;
   }
 
   protected abstract AbstractRpcServices getRpcService();

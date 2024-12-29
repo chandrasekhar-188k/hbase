@@ -82,6 +82,7 @@ import org.apache.hadoop.hbase.util.Addressing;
 import org.apache.hadoop.hbase.util.CommonFSUtils;
 import org.apache.hadoop.hbase.util.EnvironmentEdgeManager;
 import org.apache.hadoop.hbase.util.FSTableDescriptors;
+import org.apache.hadoop.hbase.util.FSUtils;
 import org.apache.hadoop.hbase.util.NettyEventLoopGroupConfig;
 import org.apache.hadoop.hbase.util.Pair;
 import org.apache.hadoop.hbase.util.Sleeper;
@@ -232,6 +233,8 @@ public abstract class HBaseServerBase<R extends HBaseRpcServicesBase<?>> extends
   // flag set after we're done setting up server threads
   protected final AtomicBoolean online = new AtomicBoolean(false);
 
+  protected volatile boolean dataFsOk;
+
   public AtomicBoolean getOnline() {
     return online;
   }
@@ -380,6 +383,7 @@ public abstract class HBaseServerBase<R extends HBaseRpcServicesBase<?>> extends
       this.shortOperationTimeout = conf.getInt(HConstants.HBASE_RPC_SHORTOPERATION_TIMEOUT_KEY,
         HConstants.DEFAULT_HBASE_RPC_SHORTOPERATION_TIMEOUT);
       this.masterless = conf.getBoolean(MASTERLESS_CONFIG_NAME, false);
+      this.dataFsOk = true;
       span.setStatus(StatusCode.OK);
     } catch (Throwable t) {
       TraceUtil.setError(span, t);
@@ -964,6 +968,23 @@ public abstract class HBaseServerBase<R extends HBaseRpcServicesBase<?>> extends
     final Class<? extends HBaseServerBase> serverClass, final Configuration conf) throws Exception {
     Constructor<? extends HBaseServerBase> c = serverClass.getConstructor(Configuration.class);
     return c.newInstance(conf);
+  }
+
+  /**
+   * Checks to see if the file system is still accessible. If not, sets abortRequested and
+   * stopRequested
+   * @return false if file system is not available
+   */
+  public boolean checkFileSystem() {
+    if (this.dataFsOk && this.dataFs != null) {
+      try {
+        FSUtils.checkFileSystemAvailable(this.dataFs);
+      } catch (IOException e) {
+        abort("File System not available", e);
+        this.dataFsOk = false;
+      }
+    }
+    return this.dataFsOk;
   }
 
 }

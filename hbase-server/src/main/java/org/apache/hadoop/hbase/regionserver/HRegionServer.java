@@ -63,6 +63,7 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
@@ -106,7 +107,9 @@ import org.apache.hadoop.hbase.coprocessor.CoprocessorHost;
 import org.apache.hadoop.hbase.exceptions.RegionMovedException;
 import org.apache.hadoop.hbase.exceptions.RegionOpeningException;
 import org.apache.hadoop.hbase.exceptions.UnknownProtocolException;
+import org.apache.hadoop.hbase.executor.ExecutorService;
 import org.apache.hadoop.hbase.executor.ExecutorType;
+import org.apache.hadoop.hbase.fs.HFileSystem;
 import org.apache.hadoop.hbase.http.InfoServer;
 import org.apache.hadoop.hbase.io.hfile.BlockCache;
 import org.apache.hadoop.hbase.io.hfile.BlockCacheFactory;
@@ -313,7 +316,14 @@ public class HRegionServer extends HBaseServerBase<RSRpcServices>
 
   private LeaseManager leaseManager;
 
-  private volatile boolean dataFsOk;
+  // Instance of the hbase executor executorService.
+  protected ExecutorService executorService;
+
+  private HFileSystem walFs;
+
+  // Go down hard. Used if file system becomes unavailable and also in
+  // debugging and unit tests.
+  private AtomicBoolean abortRequested;
   static final String ABORT_TIMEOUT = "hbase.regionserver.abort.timeout";
   // Default abort timeout is 1200 seconds for safe
   private static final long DEFAULT_ABORT_TIMEOUT = 1200000;
@@ -324,6 +334,10 @@ public class HRegionServer extends HBaseServerBase<RSRpcServices>
   // space regions.
   private boolean stopping = false;
   private volatile boolean killed = false;
+  private volatile boolean shutDown = false;
+
+  private Path dataRootDir;
+  private Path walRootDir;
 
   private final int threadWakeFrequency;
 
@@ -490,7 +504,6 @@ public class HRegionServer extends HBaseServerBase<RSRpcServices>
     super(conf, "RegionServer"); // thread name
     final Span span = TraceUtil.createSpan("HRegionServer.cxtor");
     try (Scope ignored = span.makeCurrent()) {
-      this.dataFsOk = true;
       this.masterless = !clusterMode();
       MemorySizeUtil.checkForClusterFreeHeapMemoryLimit(this.conf);
       HFile.checkHFileVersion(this.conf);
@@ -3045,23 +3058,6 @@ public class HRegionServer extends HBaseServerBase<RSRpcServices>
       : new IOException(msg, t));
   }
 
-  /**
-   * Checks to see if the file system is still accessible. If not, sets abortRequested and
-   * stopRequested
-   * @return false if file system is not available
-   */
-  boolean checkFileSystem() {
-    if (this.dataFsOk && this.dataFs != null) {
-      try {
-        FSUtils.checkFileSystemAvailable(this.dataFs);
-      } catch (IOException e) {
-        abort("File System not available", e);
-        this.dataFsOk = false;
-      }
-    }
-    return this.dataFsOk;
-  }
-
   @Override
   public void updateRegionFavoredNodesMapping(String encodedRegionName,
     List<org.apache.hadoop.hbase.shaded.protobuf.generated.HBaseProtos.ServerName> favoredNodes) {
@@ -3222,6 +3218,12 @@ public class HRegionServer extends HBaseServerBase<RSRpcServices>
     return CacheEvictionStats.builder().withEvictedBlocks(evictedBlocks).build();
   }
 
+  /**
+   * @return the max compaction pressure of all stores on this regionserver. The value should be
+   *         greater than or equal to 0.0, and any value greater than 1.0 means we enter the
+   *         emergency state that some stores have too many store files.
+   * @see org.apache.hadoop.hbase.regionserver.Store#getCompactionPressure()
+   */
   @Override
   public double getCompactionPressure() {
     double max = 0;
@@ -3259,6 +3261,11 @@ public class HRegionServer extends HBaseServerBase<RSRpcServices>
     return flushThroughputController;
   }
 
+  /**
+   * @return the flush pressure of all stores on this regionserver. The value should be greater than
+   *         or equal to 0.0, and any value greater than 1.0 means we enter the emergency state that
+   *         global memstore size already exceeds lower limit.
+   */
   @Override
   public double getFlushPressure() {
     if (getRegionServerAccounting() == null || cacheFlusher == null) {

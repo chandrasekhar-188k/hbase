@@ -255,7 +255,7 @@ public class HStore
    * @param family    HColumnDescriptor for this column
    * @param confParam configuration object failed. Can be null.
    */
-  protected HStore(final HRegion region, final ColumnFamilyDescriptor family,
+  public HStore(final HRegion region, final ColumnFamilyDescriptor family,
     final Configuration confParam, boolean warmup) throws IOException {
     this.conf = StoreUtils.createStoreConfiguration(confParam, region.getTableDescriptor(), family);
 
@@ -1509,19 +1509,20 @@ public class HStore
     ) {
       if (!requestToCompactionManager(forceMajor, priority)) {
         // if request to cm error, do local compaction or retry
-        return selectCompaction(priority, tracker, user);
+        return selectCompaction(priority, tracker, user, filesCompacting);
       } else {
         LOG.debug("request compaction to compaction server, regioninfo:{}, store ",
           this.getRegionInfo(), this);
       }
       return Optional.empty();
     } else {
-      return selectCompaction(priority, tracker, user);
+      return selectCompaction(priority, tracker, user, filesCompacting);
     }
   }
 
-  private Optional<CompactionContext> selectCompaction(int priority,
-    CompactionLifeCycleTracker tracker, User user) throws IOException {
+  public Optional<CompactionContext> selectCompaction(int priority,
+    CompactionLifeCycleTracker tracker, User user, List<HStoreFile> filesCompacting)
+    throws IOException {
     final CompactionContext compaction = storeEngine.createCompaction();
     CompactionRequestImpl request = null;
     this.storeEngine.readLock();
@@ -1529,7 +1530,7 @@ public class HStore
       synchronized (filesCompacting) {
         // First, see if coprocessor would want to override selection.
         if (this.getCoprocessorHost() != null) {
-          final List<HStoreFile> candidatesForCoproc = compaction.preSelect(this.filesCompacting);
+          final List<HStoreFile> candidatesForCoproc = compaction.preSelect(filesCompacting);
           boolean override =
             getCoprocessorHost().preCompactSelection(this, candidatesForCoproc, tracker, user);
           if (override) {
@@ -1544,7 +1545,7 @@ public class HStore
           boolean mayUseOffPeak =
             offPeakHours.isOffPeakHour() && offPeakCompactionTracker.compareAndSet(false, true);
           try {
-            compaction.select(this.filesCompacting, isUserCompaction, mayUseOffPeak,
+            compaction.select(filesCompacting, isUserCompaction, mayUseOffPeak,
               forceMajor && filesCompacting.isEmpty());
           } catch (IOException e) {
             if (mayUseOffPeak) {

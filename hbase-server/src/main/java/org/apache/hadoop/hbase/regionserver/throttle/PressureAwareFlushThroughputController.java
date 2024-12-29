@@ -20,7 +20,6 @@ package org.apache.hadoop.hbase.regionserver.throttle;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.HBaseInterfaceAudience;
 import org.apache.hadoop.hbase.ScheduledChore;
-import org.apache.hadoop.hbase.regionserver.RegionServerServices;
 import org.apache.hadoop.hbase.regionserver.compactions.OffPeakHours;
 import org.apache.yetus.audience.InterfaceAudience;
 import org.slf4j.Logger;
@@ -68,7 +67,7 @@ public class PressureAwareFlushThroughputController extends PressureAwareThrough
     10L * 1024 * 1024;// 10MB
 
   @Override
-  public void setup(final RegionServerServices server) {
+  public void setup(final ThroughputControllerService server) {
     server.getChoreService().scheduleChore(
       new ScheduledChore("FlushThroughputTuner", this, tuningPeriod, this.tuningPeriod) {
 

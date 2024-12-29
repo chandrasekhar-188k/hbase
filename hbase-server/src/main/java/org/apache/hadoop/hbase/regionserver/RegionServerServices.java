@@ -40,6 +40,7 @@ import org.apache.hadoop.hbase.quotas.RegionSizeStore;
 import org.apache.hadoop.hbase.regionserver.compactions.CompactionRequester;
 import org.apache.hadoop.hbase.regionserver.regionreplication.RegionReplicationBufferManager;
 import org.apache.hadoop.hbase.regionserver.throttle.ThroughputController;
+import org.apache.hadoop.hbase.regionserver.throttle.ThroughputControllerService;
 import org.apache.hadoop.hbase.security.access.AccessChecker;
 import org.apache.hadoop.hbase.security.access.ZKPermissionWatcher;
 import org.apache.hadoop.hbase.wal.WAL;
@@ -55,7 +56,8 @@ import org.apache.hadoop.hbase.shaded.protobuf.generated.RegionServerStatusProto
  * judicious adding API. Changes cause ripples through the code base.
  */
 @InterfaceAudience.Private
-public interface RegionServerServices extends Server, MutableOnlineRegions, FavoredNodesForRegion {
+public interface RegionServerServices
+  extends Server, MutableOnlineRegions, FavoredNodesForRegion, ThroughputControllerService {
 
   /** Returns the WAL for a particular region. Pass null for getting the default (common) WAL */
   WAL getWAL(RegionInfo regionInfo) throws IOException;
@@ -222,24 +224,8 @@ public interface RegionServerServices extends Server, MutableOnlineRegions, Favo
   /** Returns heap memory manager instance */
   HeapMemoryManager getHeapMemoryManager();
 
-  /**
-   * @return the max compaction pressure of all stores on this regionserver. The value should be
-   *         greater than or equal to 0.0, and any value greater than 1.0 means we enter the
-   *         emergency state that some stores have too many store files.
-   * @see org.apache.hadoop.hbase.regionserver.Store#getCompactionPressure()
-   */
-  double getCompactionPressure();
-
   /** Returns the controller to avoid flush too fast */
   ThroughputController getFlushThroughputController();
-
-  /**
-   * @return the flush pressure of all stores on this regionserver. The value should be greater than
-   *         or equal to 0.0, and any value greater than 1.0 means we enter the emergency state that
-   *         global memstore size already exceeds lower limit.
-   */
-  @Deprecated
-  double getFlushPressure();
 
   /** Returns the metrics tracker for the region server */
   MetricsRegionServer getMetrics();

@@ -17,35 +17,20 @@
  */
 package org.apache.hadoop.hbase.regionserver.throttle;
 
-import org.apache.hadoop.hbase.HBaseInterfaceAudience;
-import org.apache.hadoop.hbase.Stoppable;
+import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.hbase.ChoreService;
 import org.apache.yetus.audience.InterfaceAudience;
 
 /**
- * A utility that constrains the total throughput of one or more simultaneous flows by sleeping when
- * necessary.
+ * this Interface is provider of methods the {@link ThroughputController} needs to run
  */
-@InterfaceAudience.LimitedPrivate(HBaseInterfaceAudience.CONFIG)
-public interface ThroughputController extends Stoppable {
+@InterfaceAudience.Private
+public interface ThroughputControllerService {
+  ChoreService getChoreService();
 
-  /**
-   * Setup controller for the given server.
-   */
-  void setup(ThroughputControllerService server);
+  double getCompactionPressure();
 
-  /**
-   * Start the throughput controller.
-   */
-  void start(String name);
+  double getFlushPressure();
 
-  /**
-   * Control the throughput. Will sleep if too fast.
-   * @return the actual sleep time.
-   */
-  long control(String name, long size) throws InterruptedException;
-
-  /**
-   * Finish the controller. Should call this method in a finally block.
-   */
-  void finish(String name);
+  Configuration getConfiguration();
 }

@@ -22,7 +22,6 @@ import java.util.concurrent.ConcurrentMap;
 import org.apache.hadoop.conf.Configured;
 import org.apache.hadoop.hbase.HBaseInterfaceAudience;
 import org.apache.hadoop.hbase.Stoppable;
-import org.apache.hadoop.hbase.regionserver.RegionServerServices;
 import org.apache.hadoop.hbase.regionserver.compactions.OffPeakHours;
 import org.apache.hadoop.hbase.util.EnvironmentEdgeManager;
 import org.apache.yetus.audience.InterfaceAudience;
@@ -80,7 +79,7 @@ public abstract class PressureAwareThroughputController extends Configured
     new ConcurrentHashMap<>();
 
   @Override
-  public abstract void setup(final RegionServerServices server);
+  public abstract void setup(final ThroughputControllerService server);
 
   protected String throughputDesc(long deltaSize, long elapsedTime) {
     return throughputDesc((double) deltaSize / elapsedTime * 1000);

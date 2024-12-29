@@ -18,9 +18,11 @@
 package org.apache.hadoop.hbase.compactionserver;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.atomic.LongAdder;
 import javax.servlet.http.HttpServlet;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.ChoreService;
@@ -32,9 +34,11 @@ import org.apache.hadoop.hbase.HRegionLocation;
 import org.apache.hadoop.hbase.ServerName;
 import org.apache.hadoop.hbase.YouAreDeadException;
 import org.apache.hadoop.hbase.coprocessor.CoprocessorHost;
+import org.apache.hadoop.hbase.fs.HFileSystem;
 import org.apache.hadoop.hbase.http.InfoServer;
 import org.apache.hadoop.hbase.log.HBaseMarkers;
 import org.apache.hadoop.hbase.namequeues.NamedQueueRecorder;
+import org.apache.hadoop.hbase.regionserver.compactions.CompactionProgress;
 import org.apache.hadoop.hbase.security.SecurityConstants;
 import org.apache.hadoop.hbase.security.Superusers;
 import org.apache.hadoop.hbase.security.UserProvider;
@@ -59,6 +63,11 @@ public class HCompactionServer extends HBaseServerBase {
   /** compaction server process name */
   public static final String COMPACTIONSERVER = "compactionserver";
   private static final Logger LOG = LoggerFactory.getLogger(HCompactionServer.class);
+  // Request counter.
+  final LongAdder requestCount = new LongAdder();
+  final LongAdder requestFailedCount = new LongAdder();
+  // ChoreService used to schedule tasks that we want to run periodically
+  private ChoreService choreService;
 
   @Override
   protected String getProcessName() {
@@ -82,14 +91,13 @@ public class HCompactionServer extends HBaseServerBase {
 
   @Override
   public ChoreService getChoreService() {
-    return null;
+    return choreService;
   }
 
   protected final CSRpcServices rpcServices;
 
   // Stub to do compaction server status calls against the master.
   private volatile CompactionServerStatusService.BlockingInterface cssStub;
-
   CompactionThreadManager compactionThreadManager;
 
   /**
@@ -134,6 +142,8 @@ public class HCompactionServer extends HBaseServerBase {
     // login the server principal (if using secure Hadoop)
     login(userProvider, this.rpcServices.getSocketAddress().getHostName());
     Superusers.initialize(conf);
+    this.dataFs = new HFileSystem(this.conf, true);
+    this.choreService = new ChoreService(getName(), true);
     this.compactionThreadManager = new CompactionThreadManager(conf, this);
     this.rpcServices.start();
   }
@@ -177,9 +187,20 @@ public class HCompactionServer extends HBaseServerBase {
     long reportEndTime) {
     ClusterStatusProtos.CompactionServerLoad.Builder serverLoad =
       ClusterStatusProtos.CompactionServerLoad.newBuilder();
-    serverLoad.setCompactedCells(0);
-    serverLoad.setCompactingCells(0);
-    serverLoad.setTotalNumberOfRequests(rpcServices.requestCount.sum());
+    Collection<CompactionTask> tasks = compactionThreadManager.getRunningCompactionTasks().values();
+    long compactingCells = 0;
+    long compactedCells = 0;
+    for (CompactionTask compactionTask : tasks) {
+      serverLoad.addCompactionTasks(compactionTask.getTaskName());
+      CompactionProgress progress = compactionTask.getStore().getCompactionProgress();
+      if (progress != null) {
+        compactedCells += progress.getCurrentCompactedKvs();
+        compactingCells += progress.getTotalCompactingKVs();
+      }
+    }
+    serverLoad.setCompactedCells(compactedCells);
+    serverLoad.setCompactingCells(compactingCells);
+    serverLoad.setTotalNumberOfRequests(requestCount.sum());
     serverLoad.setReportStartTime(reportStartTime);
     serverLoad.setReportEndTime(reportEndTime);
     return serverLoad.build();
@@ -219,11 +240,6 @@ public class HCompactionServer extends HBaseServerBase {
     return false;
   }
 
-  @Override
-  protected void stopChores() {
-
-  }
-
   /**
    * The HCompactionServer sticks in this loop until closed.
    */
@@ -253,7 +269,7 @@ public class HCompactionServer extends HBaseServerBase {
       // We registered with the Master. Go into run mode.
       long lastMsg = System.currentTimeMillis();
       // The main run loop.
-      while (!isStopped()) {
+      while (!isStopped() && this.dataFsOk) {
         long now = System.currentTimeMillis();
         if ((now - lastMsg) >= msgInterval) {
           if (tryCompactionServerReport(lastMsg, now) && !online.get()) {
@@ -274,6 +290,16 @@ public class HCompactionServer extends HBaseServerBase {
         String prefix = t instanceof YouAreDeadException ? "" : "Unhandled: ";
         abort(prefix + t.getMessage(), t);
       }
+    }
+    stopChores();
+    if (this.compactionThreadManager != null) {
+      this.compactionThreadManager.waitForStop();
+    }
+  }
+
+  protected void stopChores() {
+    if (this.choreService != null) {
+      choreService.shutdown();
     }
   }
 

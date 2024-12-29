@@ -21,10 +21,13 @@ import static org.apache.hadoop.hbase.compactionserver.HCompactionServer.COMPACT
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
-import java.util.concurrent.atomic.LongAdder;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.HBaseRpcServicesBase;
+import org.apache.hadoop.hbase.ServerName;
+import org.apache.hadoop.hbase.client.ColumnFamilyDescriptor;
+import org.apache.hadoop.hbase.client.RegionInfo;
 import org.apache.hadoop.hbase.ipc.PriorityFunction;
 import org.apache.hadoop.hbase.ipc.RpcServer;
 import org.apache.hadoop.hbase.regionserver.SimpleRpcSchedulerFactory;
@@ -42,6 +45,7 @@ import org.apache.hadoop.hbase.shaded.protobuf.generated.AdminProtos;
 import org.apache.hadoop.hbase.shaded.protobuf.generated.CompactionProtos;
 import org.apache.hadoop.hbase.shaded.protobuf.generated.CompactionProtos.CompactResponse;
 import org.apache.hadoop.hbase.shaded.protobuf.generated.CompactionProtos.CompactionService;
+import org.apache.hadoop.hbase.shaded.protobuf.generated.HBaseProtos;
 import org.apache.hadoop.hbase.shaded.protobuf.generated.QuotaProtos;
 
 @InterfaceAudience.Private
@@ -51,8 +55,6 @@ public class CSRpcServices extends HBaseRpcServicesBase
 
   private final HCompactionServer compactionServer;
 
-  // Request counter.
-  final LongAdder requestCount = new LongAdder();
   /** RPC scheduler to use for the compaction server. */
   public static final String COMPACTION_SERVER_RPC_SCHEDULER_FACTORY_CLASS =
     "hbase.compaction.server.rpc.scheduler.factory.class";
@@ -268,10 +270,24 @@ public class CSRpcServices extends HBaseRpcServicesBase
    */
   @Override
   public CompactResponse requestCompaction(RpcController controller,
-    CompactionProtos.CompactRequest request) {
-    requestCount.increment();
+    CompactionProtos.CompactRequest request) throws ServiceException {
+    compactionServer.requestCount.increment();
+    ServerName rsServerName = ProtobufUtil.toServerName(request.getServer());
+    RegionInfo regionInfo = ProtobufUtil.toRegionInfo(request.getRegionInfo());
+    ColumnFamilyDescriptor cfd = ProtobufUtil.toColumnFamilyDescriptor(request.getFamily());
+    boolean major = request.getMajor();
+    int priority = request.getPriority();
+    List<HBaseProtos.ServerName> favoredNodes = Collections.singletonList(request.getServer());
     LOG.info("Receive compaction request from {}", ProtobufUtil.toString(request));
-    compactionServer.compactionThreadManager.requestCompaction();
-    return CompactionProtos.CompactResponse.newBuilder().build();
+    CompactionTask compactionTask =
+      CompactionTask.newBuilder().setRsServerName(rsServerName).setRegionInfo(regionInfo)
+        .setColumnFamilyDescriptor(cfd).setRequestMajor(major).setPriority(priority)
+        .setFavoredNodes(favoredNodes).setSubmitTime(System.currentTimeMillis()).build();
+    try {
+      compactionServer.compactionThreadManager.requestCompaction(compactionTask);
+      return CompactionProtos.CompactResponse.newBuilder().build();
+    } catch (IOException ioe) {
+      throw new ServiceException(ioe);
+    }
   }
 }
