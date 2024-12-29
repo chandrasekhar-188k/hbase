@@ -49,6 +49,7 @@ import org.slf4j.LoggerFactory;
 import org.apache.hbase.thirdparty.com.google.protobuf.ServiceException;
 
 import org.apache.hadoop.hbase.shaded.protobuf.ProtobufUtil;
+import org.apache.hadoop.hbase.shaded.protobuf.generated.ClusterStatusProtos;
 import org.apache.hadoop.hbase.shaded.protobuf.generated.CompactionServerStatusProtos;
 import org.apache.hadoop.hbase.shaded.protobuf.generated.CompactionServerStatusProtos.CompactionServerStatusService;
 
@@ -88,6 +89,8 @@ public class HCompactionServer extends HBaseServerBase {
 
   // Stub to do compaction server status calls against the master.
   private volatile CompactionServerStatusService.BlockingInterface cssStub;
+
+  CompactionThreadManager compactionThreadManager;
 
   /**
    * Get the current master from ZooKeeper and open the RPC connection to it. To get a fresh
@@ -131,6 +134,7 @@ public class HCompactionServer extends HBaseServerBase {
     // login the server principal (if using secure Hadoop)
     login(userProvider, this.rpcServices.getSocketAddress().getHostName());
     Superusers.initialize(conf);
+    this.compactionThreadManager = new CompactionThreadManager(conf, this);
     this.rpcServices.start();
   }
 
@@ -169,15 +173,30 @@ public class HCompactionServer extends HBaseServerBase {
     return false;
   }
 
-  private boolean tryCompactionServerReport() throws IOException {
+  private ClusterStatusProtos.CompactionServerLoad buildServerLoad(long reportStartTime,
+    long reportEndTime) {
+    ClusterStatusProtos.CompactionServerLoad.Builder serverLoad =
+      ClusterStatusProtos.CompactionServerLoad.newBuilder();
+    serverLoad.setCompactedCells(0);
+    serverLoad.setCompactingCells(0);
+    serverLoad.setTotalNumberOfRequests(rpcServices.requestCount.sum());
+    serverLoad.setReportStartTime(reportStartTime);
+    serverLoad.setReportEndTime(reportEndTime);
+    return serverLoad.build();
+  }
+
+  private boolean tryCompactionServerReport(long reportStartTime, long reportEndTime)
+    throws IOException {
     CompactionServerStatusService.BlockingInterface css = cssStub;
     if (css == null) {
       return false;
     }
+    ClusterStatusProtos.CompactionServerLoad sl = buildServerLoad(reportStartTime, reportEndTime);
     try {
       CompactionServerStatusProtos.CompactionServerReportRequest.Builder request =
         CompactionServerStatusProtos.CompactionServerReportRequest.newBuilder();
       request.setServer(ProtobufUtil.toServerName(getServerName()));
+      request.setLoad(sl);
       this.cssStub.compactionServerReport(null, request.build());
     } catch (ServiceException se) {
       IOException ioe = ProtobufUtil.getRemoteException(se);
@@ -237,7 +256,7 @@ public class HCompactionServer extends HBaseServerBase {
       while (!isStopped()) {
         long now = System.currentTimeMillis();
         if ((now - lastMsg) >= msgInterval) {
-          if (tryCompactionServerReport() && !online.get()) {
+          if (tryCompactionServerReport(lastMsg, now) && !online.get()) {
             synchronized (online) {
               online.set(true);
               online.notifyAll();

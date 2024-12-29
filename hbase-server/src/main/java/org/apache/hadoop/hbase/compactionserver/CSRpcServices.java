@@ -22,6 +22,7 @@ import static org.apache.hadoop.hbase.compactionserver.HCompactionServer.COMPACT
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.LongAdder;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.HBaseRpcServicesBase;
 import org.apache.hadoop.hbase.ipc.PriorityFunction;
@@ -36,14 +37,22 @@ import org.apache.hbase.thirdparty.com.google.common.collect.ImmutableList;
 import org.apache.hbase.thirdparty.com.google.protobuf.RpcController;
 import org.apache.hbase.thirdparty.com.google.protobuf.ServiceException;
 
+import org.apache.hadoop.hbase.shaded.protobuf.ProtobufUtil;
 import org.apache.hadoop.hbase.shaded.protobuf.generated.AdminProtos;
+import org.apache.hadoop.hbase.shaded.protobuf.generated.CompactionProtos;
+import org.apache.hadoop.hbase.shaded.protobuf.generated.CompactionProtos.CompactResponse;
+import org.apache.hadoop.hbase.shaded.protobuf.generated.CompactionProtos.CompactionService;
 import org.apache.hadoop.hbase.shaded.protobuf.generated.QuotaProtos;
 
 @InterfaceAudience.Private
-public class CSRpcServices extends HBaseRpcServicesBase {
+public class CSRpcServices extends HBaseRpcServicesBase
+  implements CompactionService.BlockingInterface {
   protected static final Logger LOG = LoggerFactory.getLogger(CSRpcServices.class);
 
-  protected final HCompactionServer compactionServer;
+  private final HCompactionServer compactionServer;
+
+  // Request counter.
+  final LongAdder requestCount = new LongAdder();
   /** RPC scheduler to use for the compaction server. */
   public static final String COMPACTION_SERVER_RPC_SCHEDULER_FACTORY_CLASS =
     "hbase.compaction.server.rpc.scheduler.factory.class";
@@ -55,6 +64,9 @@ public class CSRpcServices extends HBaseRpcServicesBase {
   protected List<RpcServer.BlockingServiceAndInterface> getServices(final Configuration conf) {
     // now return empty, compaction server do not receive rpc request
     List<RpcServer.BlockingServiceAndInterface> bssi = new ArrayList<>();
+    bssi.add(new RpcServer.BlockingServiceAndInterface(
+      CompactionService.newReflectiveBlockingService(this),
+      CompactionService.BlockingInterface.class));
     return new ImmutableList.Builder<RpcServer.BlockingServiceAndInterface>().addAll(bssi).build();
   }
 
@@ -238,8 +250,28 @@ public class CSRpcServices extends HBaseRpcServicesBase {
   }
 
   @Override
+  public CompactionProtos.CompleteCompactionResponse completeCompaction(RpcController controller,
+    CompactionProtos.CompleteCompactionRequest request) throws ServiceException {
+    return null;
+  }
+
+  @Override
   public AdminProtos.GetCachedFilesListResponse getCachedFilesList(RpcController rpcController,
     AdminProtos.GetCachedFilesListRequest getCachedFilesListRequest) throws ServiceException {
     return null;
+  }
+
+  /**
+   * Request compaction on the compaction server.
+   * @param controller the RPC controller
+   * @param request    the compaction request
+   */
+  @Override
+  public CompactResponse requestCompaction(RpcController controller,
+    CompactionProtos.CompactRequest request) {
+    requestCount.increment();
+    LOG.info("Receive compaction request from {}", ProtobufUtil.toString(request));
+    compactionServer.compactionThreadManager.requestCompaction();
+    return CompactionProtos.CompactResponse.newBuilder().build();
   }
 }

@@ -27,6 +27,7 @@ import org.apache.yetus.audience.InterfaceAudience;
 import org.apache.hadoop.hbase.shaded.protobuf.generated.AdminProtos.AdminService;
 import org.apache.hadoop.hbase.shaded.protobuf.generated.BootstrapNodeProtos.BootstrapNodeService;
 import org.apache.hadoop.hbase.shaded.protobuf.generated.ClientProtos.ClientService;
+import org.apache.hadoop.hbase.shaded.protobuf.generated.CompactionProtos;
 import org.apache.hadoop.hbase.shaded.protobuf.generated.CompactionServerStatusProtos;
 import org.apache.hadoop.hbase.shaded.protobuf.generated.LockServiceProtos.LockService;
 import org.apache.hadoop.hbase.shaded.protobuf.generated.MasterProtos;
@@ -52,7 +53,9 @@ public class HBasePolicyProvider extends PolicyProvider {
       RegionServerStatusService.BlockingInterface.class),
     new Service("security.regionserver.protocol.acl", BootstrapNodeService.BlockingInterface.class),
     new Service("security.masterregion.protocol.acl",
-      CompactionServerStatusProtos.CompactionServerStatusService.BlockingInterface.class) };
+      CompactionServerStatusProtos.CompactionServerStatusService.BlockingInterface.class),
+    new Service("security.masterregion.protocol.acl",
+      CompactionProtos.CompactionService.BlockingInterface.class) };
 
   @Override
   public Service[] getServices() {

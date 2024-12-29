@@ -110,6 +110,11 @@ public class DummyAsyncClusterConnection implements AsyncClusterConnection {
   }
 
   @Override
+  public AsyncCompactionServerService getCompactionServerService(ServerName serverName) {
+    return null;
+  }
+
+  @Override
   public NonceGenerator getNonceGenerator() {
     return null;
   }

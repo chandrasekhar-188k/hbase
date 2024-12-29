@@ -17,6 +17,8 @@
  */
 package org.apache.hadoop.hbase.compactionserver;
 
+import static org.junit.Assert.assertNull;
+
 import java.io.IOException;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.HBaseClassTestRule;
@@ -59,6 +61,7 @@ public class TestCompactionServer {
   @BeforeClass
   public static void beforeClass() throws Exception {
     TEST_UTIL.startMiniCluster(StartTestingClusterOption.builder().numCompactionServers(1).build());
+    TEST_UTIL.getAdmin().switchCompactionOffload(true);
     MASTER = TEST_UTIL.getMiniHBaseCluster().getMaster();
     TEST_UTIL.getMiniHBaseCluster().waitForActiveAndReadyMaster();
     COMPACTION_SERVER =
@@ -83,6 +86,19 @@ public class TestCompactionServer {
   }
 
   @Test
+  public void testCompactionServerReport() throws Exception {
+    CompactionOffloadManager compactionOffloadManager = MASTER.getCompactionOffloadManager();
+    TEST_UTIL.waitFor(60000, () -> !compactionOffloadManager.getOnlineServers().isEmpty()
+      && null != compactionOffloadManager.getOnlineServers().get(COMPACTION_SERVER_NAME));
+    // invoke compact
+    TEST_UTIL.compact(TABLENAME, false);
+    TEST_UTIL.waitFor(60000,
+      () -> COMPACTION_SERVER.rpcServices.requestCount.sum() > 0
+        && COMPACTION_SERVER.rpcServices.requestCount.sum() == compactionOffloadManager
+          .getOnlineServers().get(COMPACTION_SERVER_NAME).getTotalNumberOfRequests());
+  }
+
+  @Test
   public void testCompactionServerExpire() throws Exception {
     int initialNum = TEST_UTIL.getMiniHBaseCluster().getNumLiveCompactionServers();
     CONF.setInt(HConstants.COMPACTION_SERVER_PORT, HConstants.DEFAULT_COMPACTION_SERVER_PORT + 1);
@@ -94,11 +110,13 @@ public class TestCompactionServer {
 
     CompactionOffloadManager compactionOffloadManager = MASTER.getCompactionOffloadManager();
     TEST_UTIL.waitFor(60000,
-      () -> initialNum + 1 == compactionOffloadManager.getOnlineServersList().size());
+      () -> initialNum + 1 == compactionOffloadManager.getOnlineServersList().size()
+        && null != compactionOffloadManager.getLoad(compactionServerName));
 
     compactionServer.stop("test");
 
     TEST_UTIL.waitFor(60000,
       () -> initialNum == compactionOffloadManager.getOnlineServersList().size());
+    assertNull(compactionOffloadManager.getLoad(compactionServerName));
   }
 }

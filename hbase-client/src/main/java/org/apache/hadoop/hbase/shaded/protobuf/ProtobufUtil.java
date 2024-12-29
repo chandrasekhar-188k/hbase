@@ -184,6 +184,7 @@ import org.apache.hadoop.hbase.shaded.protobuf.generated.ClientProtos.RegionActi
 import org.apache.hadoop.hbase.shaded.protobuf.generated.ClientProtos.ScanRequest;
 import org.apache.hadoop.hbase.shaded.protobuf.generated.ClusterStatusProtos;
 import org.apache.hadoop.hbase.shaded.protobuf.generated.ClusterStatusProtos.RegionLoad;
+import org.apache.hadoop.hbase.shaded.protobuf.generated.CompactionProtos;
 import org.apache.hadoop.hbase.shaded.protobuf.generated.ComparatorProtos;
 import org.apache.hadoop.hbase.shaded.protobuf.generated.FilterProtos;
 import org.apache.hadoop.hbase.shaded.protobuf.generated.HBaseProtos;
@@ -3858,5 +3859,17 @@ public final class ProtobufUtil {
       ByteStreams.readFully(in, bytes);
       return parser.parseFrom(bytes);
     }
+  }
+
+  public static String toString(CompactionProtos.CompactRequest request) {
+    ServerName rsServerName = ProtobufUtil.toServerName(request.getServer());
+    org.apache.hadoop.hbase.client.RegionInfo regionInfo =
+      ProtobufUtil.toRegionInfo(request.getRegionInfo());
+    ColumnFamilyDescriptor cfd = ProtobufUtil.toColumnFamilyDescriptor(request.getFamily());
+    boolean major = request.getMajor();
+    int priority = request.getPriority();
+    return new StringBuilder("RS: ").append(rsServerName).append(", region: ")
+      .append(regionInfo.getRegionNameAsString()).append(", CF: ").append(cfd.getNameAsString())
+      .append(", major:").append(major).append(", priority:").append(priority).toString();
   }
 }

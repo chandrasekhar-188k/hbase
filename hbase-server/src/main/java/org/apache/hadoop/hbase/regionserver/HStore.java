@@ -1184,13 +1184,58 @@ public class HStore
     }
   }
 
+  protected boolean completeCompaction(CompactionRequestImpl cr, List<String> filesToCompact,
+    User user, List<String> newFiles) throws IOException {
+    Collection<HStoreFile> selectedStoreFiles = new ArrayList<>();
+    for (String selectedFile : filesToCompact) {
+      HStoreFile storeFile = getStoreFileBasedOnFileName(selectedFile);
+      if (storeFile == null) {
+        return false;
+      } else {
+        selectedStoreFiles.add(storeFile);
+      }
+    }
+    // TODO(chan): need to adopt to store file tracker based?
+    Path regionDir = getRegionFileSystem().getRegionDir();
+    Path regionTmpDir = new Path(regionDir, ".tmp");
+    Path storeTmpDir = new Path(regionTmpDir, getColumnFamilyName());
+    List<Path> newFilePaths = new ArrayList<>();
+    for (String newFile : newFiles) {
+      newFilePaths.add(new Path(storeTmpDir, newFile));
+    }
+    completeCompaction(cr, selectedStoreFiles, user, newFilePaths);
+    return true;
+  }
+
+  private synchronized List<HStoreFile> completeCompaction(CompactionRequestImpl cr,
+    Collection<HStoreFile> filesToCompact, User user, List<Path> newFiles) throws IOException {
+    // TODO check store contains files to compact
+    // Do the steps necessary to complete the compaction.
+    setStoragePolicyFromFileName(newFiles);
+    List<HStoreFile> sfs = storeEngine.commitStoreFiles(newFiles, true);
+    writeCompactionWalRecord(filesToCompact, sfs);
+    replaceStoreFiles(filesToCompact, sfs, true);
+    return sfs;
+  }
+
+  private HStoreFile getStoreFileBasedOnFileName(String fileName) {
+    for (HStoreFile storefile : getStorefiles()) {
+      if (storefile.getPath().getName().equals(fileName)) {
+        LOG.debug("Found store file: {} for selectFileName: {}", storefile, fileName);
+        return storefile;
+      }
+    }
+    LOG.warn("Does not found store file for selectFileName: {}", fileName);
+    return null;
+  }
+
   protected List<HStoreFile> doCompaction(CompactionRequestImpl cr,
     Collection<HStoreFile> filesToCompact, User user, long compactionStartTime, List<Path> newFiles)
     throws IOException {
     // Do the steps necessary to complete the compaction.
     setStoragePolicyFromFileName(newFiles);
     List<HStoreFile> sfs = storeEngine.commitStoreFiles(newFiles, true);
-    if (this.getCoprocessorHost() != null) {
+    if (this.getCoprocessorHost() != null && cr != null) {
       for (HStoreFile sf : sfs) {
         getCoprocessorHost().postCompact(this, sf, cr.getTracker(), cr, user);
       }
@@ -1457,6 +1502,26 @@ public class HStore
     // Before we do compaction, try to get rid of unneeded files to simplify things.
     removeUnneededFiles();
 
+    if (
+      region.getRegionServerServices() != null
+        && region.getRegionServerServices().isCompactionOffloadEnabled()
+      /* && region.getTableDescriptor().isCompactionOffloadEnabled() */
+    ) {
+      if (!requestToCompactionManager(forceMajor, priority)) {
+        // if request to cm error, do local compaction or retry
+        return selectCompaction(priority, tracker, user);
+      } else {
+        LOG.debug("request compaction to compaction server, regioninfo:{}, store ",
+          this.getRegionInfo(), this);
+      }
+      return Optional.empty();
+    } else {
+      return selectCompaction(priority, tracker, user);
+    }
+  }
+
+  private Optional<CompactionContext> selectCompaction(int priority,
+    CompactionLifeCycleTracker tracker, User user) throws IOException {
     final CompactionContext compaction = storeEngine.createCompaction();
     CompactionRequestImpl request = null;
     this.storeEngine.readLock();
@@ -2481,4 +2546,18 @@ public class HStore
   public long getBloomFilterEligibleRequestsCount() {
     return storeEngine.getBloomFilterMetrics().getEligibleRequestsCount();
   }
+
+  private boolean requestToCompactionManager(boolean forceMajor, int priority) {
+    return region.getRegionServerServices().requestCompactRegion(region.getRegionInfo(),
+      storeContext.getFamily(), forceMajor, priority);
+  }
+
+  public boolean getForceMajor() {
+    return this.forceMajor;
+  }
+
+  public void setForceMajor(boolean newForceMajor) {
+    this.forceMajor = newForceMajor;
+  }
+
 }

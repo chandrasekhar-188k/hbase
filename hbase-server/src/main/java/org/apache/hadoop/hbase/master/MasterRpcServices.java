@@ -193,6 +193,12 @@ import org.apache.hadoop.hbase.shaded.protobuf.generated.AdminProtos.WarmupRegio
 import org.apache.hadoop.hbase.shaded.protobuf.generated.ClientProtos;
 import org.apache.hadoop.hbase.shaded.protobuf.generated.ClusterStatusProtos;
 import org.apache.hadoop.hbase.shaded.protobuf.generated.ClusterStatusProtos.RegionStoreSequenceIds;
+import org.apache.hadoop.hbase.shaded.protobuf.generated.CompactionProtos;
+import org.apache.hadoop.hbase.shaded.protobuf.generated.CompactionProtos.CompactRequest;
+import org.apache.hadoop.hbase.shaded.protobuf.generated.CompactionProtos.CompactResponse;
+import org.apache.hadoop.hbase.shaded.protobuf.generated.CompactionProtos.CompactionService;
+import org.apache.hadoop.hbase.shaded.protobuf.generated.CompactionProtos.CompleteCompactionRequest;
+import org.apache.hadoop.hbase.shaded.protobuf.generated.CompactionProtos.CompleteCompactionResponse;
 import org.apache.hadoop.hbase.shaded.protobuf.generated.CompactionServerStatusProtos.CompactionServerReportRequest;
 import org.apache.hadoop.hbase.shaded.protobuf.generated.CompactionServerStatusProtos.CompactionServerReportResponse;
 import org.apache.hadoop.hbase.shaded.protobuf.generated.CompactionServerStatusProtos.CompactionServerStatusService;
@@ -463,7 +469,8 @@ import org.apache.hadoop.hbase.shaded.protobuf.generated.VisibilityLabelsProtos.
 public class MasterRpcServices extends HBaseRpcServicesBase<HMaster>
   implements MasterService.BlockingInterface, RegionServerStatusService.BlockingInterface,
   LockService.BlockingInterface, HbckService.BlockingInterface,
-  CompactionServerStatusService.BlockingInterface {
+  CompactionServerStatusService.BlockingInterface,
+  CompactionProtos.CompactionService.BlockingInterface {
 
   private static final Logger LOG = LoggerFactory.getLogger(MasterRpcServices.class.getName());
   private static final Logger AUDITLOG =
@@ -609,6 +616,8 @@ public class MasterRpcServices extends HBaseRpcServicesBase<HMaster>
     bssi.add(new BlockingServiceAndInterface(
       CompactionServerStatusService.newReflectiveBlockingService(this),
       CompactionServerStatusService.BlockingInterface.class));
+    bssi.add(new BlockingServiceAndInterface(CompactionService.newReflectiveBlockingService(this),
+      CompactionService.BlockingInterface.class));
     return bssi;
   }
 
@@ -729,9 +738,8 @@ public class MasterRpcServices extends HBaseRpcServicesBase<HMaster>
         versionNumber = VersionInfoUtil.getVersionNumber(versionInfo);
       }
       ServerName serverName = ProtobufUtil.toServerName(request.getServer());
-      CompactionServerMetrics newLoad =
-          CompactionServerMetricsBuilder.toCompactionServerMetrics(serverName, versionNumber,
-            version, request.getLoad());
+      CompactionServerMetrics newLoad = CompactionServerMetricsBuilder
+        .toCompactionServerMetrics(serverName, versionNumber, version, request.getLoad());
       server.getCompactionOffloadManager().compactionServerReport(serverName, newLoad);
     } catch (IOException ioe) {
       throw new ServiceException(ioe);
@@ -3720,4 +3728,18 @@ public class MasterRpcServices extends HBaseRpcServicesBase<HMaster>
       throw new ServiceException(e);
     }
   }
+
+  @Override
+  public CompactResponse requestCompaction(RpcController controller, CompactRequest request)
+    throws ServiceException {
+    server.getCompactionOffloadManager().requestCompaction(request);
+    return CompactResponse.newBuilder().build();
+  }
+
+  @Override
+  public CompleteCompactionResponse completeCompaction(RpcController controller,
+    CompleteCompactionRequest request) {
+    throw new UnsupportedOperationException("master not receive completeCompaction");
+  }
+
 }

@@ -27,6 +27,7 @@ import org.apache.hadoop.hbase.Abortable;
 import org.apache.hadoop.hbase.Server;
 import org.apache.hadoop.hbase.TableDescriptors;
 import org.apache.hadoop.hbase.TableName;
+import org.apache.hadoop.hbase.client.ColumnFamilyDescriptor;
 import org.apache.hadoop.hbase.client.RegionInfo;
 import org.apache.hadoop.hbase.client.locking.EntityLock;
 import org.apache.hadoop.hbase.executor.ExecutorService;
@@ -307,4 +308,9 @@ public interface RegionServerServices extends Server, MutableOnlineRegions, Favo
 
   @Override
   List<HRegion> getRegions();
+
+  boolean isCompactionOffloadEnabled();
+
+  boolean requestCompactRegion(RegionInfo regionInfo, ColumnFamilyDescriptor cfd, boolean major,
+    int priority);
 }
