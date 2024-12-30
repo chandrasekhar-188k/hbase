@@ -91,7 +91,7 @@ public class TestMobCompactionWithDefaults {
   @Rule
   public TestName test = new TestName();
   protected TableDescriptor tableDescriptor;
-  private ColumnFamilyDescriptor familyDescriptor;
+  protected ColumnFamilyDescriptor familyDescriptor;
   protected Admin admin;
   protected TableName table = null;
   protected int numRegions = 20;
