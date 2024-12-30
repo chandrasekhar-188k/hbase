@@ -1505,7 +1505,7 @@ public class HStore
     if (
       region.getRegionServerServices() != null
         && region.getRegionServerServices().isCompactionOffloadEnabled()
-      /* && region.getTableDescriptor().isCompactionOffloadEnabled() */
+        && region.getTableDescriptor().isCompactionOffloadEnabled()
     ) {
       if (!requestToCompactionManager(forceMajor, priority)) {
         // if request to cm error, do local compaction or retry

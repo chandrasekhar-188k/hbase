@@ -87,6 +87,15 @@ public class TableDescriptorBuilder {
 
   /**
    * Used by HBase Shell interface to access this metadata attribute which denotes if the table is
+   * compaction offload enabled.
+   */
+  @InterfaceAudience.Private
+  public static final String COMPACTION_OFFLOAD_ENABLED = "COMPACTION_OFFLOAD_ENABLED";
+  private static final Bytes COMPACTION_OFFLOAD_ENABLED_KEY =
+    new Bytes(Bytes.toBytes(COMPACTION_OFFLOAD_ENABLED));
+
+  /**
+   * Used by HBase Shell interface to access this metadata attribute which denotes if the table is
    * split enabled.
    */
   @InterfaceAudience.Private
@@ -203,6 +212,11 @@ public class TableDescriptorBuilder {
    * Constant that denotes whether the table is compaction enabled by default
    */
   public static final boolean DEFAULT_COMPACTION_ENABLED = true;
+
+  /**
+   * Constant that denotes whether the table is compaction offload enabled by default
+   */
+  public static final boolean DEFAULT_COMPACTION_OFFLOAD_ENABLED = false;
 
   /**
    * Constant that denotes whether the table is split enabled by default
@@ -431,6 +445,11 @@ public class TableDescriptorBuilder {
 
   public TableDescriptorBuilder setCompactionEnabled(final boolean isEnable) {
     desc.setCompactionEnabled(isEnable);
+    return this;
+  }
+
+  public TableDescriptorBuilder setCompactionOffloadEnabled(final boolean isEnable) {
+    desc.setCompactionOffloadEnabled(isEnable);
     return this;
   }
 
@@ -796,12 +815,33 @@ public class TableDescriptorBuilder {
     }
 
     /**
+     * Check if the compaction offload enable flag of the table is true. If flag is true then
+     * compaction will be done with offload strategy(run on CompactionServer). Otherwise, with
+     * embedded strategy (run on RegionServer)
+     * @return true if table compaction enabled
+     */
+    @Override
+    public boolean isCompactionOffloadEnabled() {
+      return getOrDefault(COMPACTION_OFFLOAD_ENABLED_KEY, Boolean::valueOf,
+        DEFAULT_COMPACTION_OFFLOAD_ENABLED);
+    }
+
+    /**
      * Setting the table compaction enable flag.
      * @param isEnable True if enable compaction.
      * @return the modifyable TD
      */
     public ModifyableTableDescriptor setCompactionEnabled(final boolean isEnable) {
       return setValue(COMPACTION_ENABLED_KEY, Boolean.toString(isEnable));
+    }
+
+    /**
+     * Setting the table compaction offload enable flag.
+     * @param isEnable True if enable compaction offload.
+     * @return the modifyable TD
+     */
+    public ModifyableTableDescriptor setCompactionOffloadEnabled(final boolean isEnable) {
+      return setValue(COMPACTION_OFFLOAD_ENABLED_KEY, Boolean.toString(isEnable));
     }
 
     /**
