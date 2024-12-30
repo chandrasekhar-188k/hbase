@@ -3577,11 +3577,13 @@ public class HRegionServer extends HBaseServerBase<RSRpcServices>
       CompactRequest.newBuilder().setServer(ProtobufUtil.toServerName(getServerName()))
         .setRegionInfo(ProtobufUtil.toRegionInfo(regionInfo))
         .setFamily(ProtobufUtil.toColumnFamilySchema(cfd)).setMajor(major).setPriority(priority);
-    if (favoredNodesForRegion != null) {
+    if (favoredNodesForRegion != null && favoredNodesForRegion.length > 0) {
       for (InetSocketAddress address : favoredNodesForRegion) {
         builder.addFavoredNodes(ProtobufUtil
           .toServerName(ServerName.valueOf(address.getHostName(), address.getPort(), 0L)));
       }
+    } else {
+      builder.addFavoredNodes(ProtobufUtil.toServerName(getServerName()));
     }
     CompactRequest compactRequest = builder.build();
     try {

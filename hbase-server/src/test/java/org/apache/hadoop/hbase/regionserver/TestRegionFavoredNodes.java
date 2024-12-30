@@ -55,21 +55,26 @@ public class TestRegionFavoredNodes {
   public static final HBaseClassTestRule CLASS_RULE =
     HBaseClassTestRule.forClass(TestRegionFavoredNodes.class);
 
-  private static final HBaseTestingUtil TEST_UTIL = new HBaseTestingUtil();
-  private static Table table;
-  private static final TableName TABLE_NAME = TableName.valueOf("table");
-  private static final byte[] COLUMN_FAMILY = Bytes.toBytes("family");
+  protected static final HBaseTestingUtil TEST_UTIL = new HBaseTestingUtil();
+  protected static Table table;
+  protected static final TableName TABLE_NAME = TableName.valueOf("table");
+  protected static final byte[] COLUMN_FAMILY = Bytes.toBytes("family");
   private static final int FAVORED_NODES_NUM = 3;
-  private static final int REGION_SERVERS = 6;
+  protected static final int REGION_SERVERS = 6;
   private static final int FLUSHES = 3;
-  private static Method createWithFavoredNode = null;
+  protected static Method createWithFavoredNode = null;
+
+  protected static void checkFileSystemWithFavoredNode() throws Exception {
+    createWithFavoredNode = DistributedFileSystem.class.getDeclaredMethod("create", Path.class,
+      FsPermission.class, boolean.class, int.class, short.class, long.class, Progressable.class,
+      InetSocketAddress[].class);
+
+  }
 
   @BeforeClass
   public static void setUpBeforeClass() throws Exception {
     try {
-      createWithFavoredNode = DistributedFileSystem.class.getDeclaredMethod("create", Path.class,
-        FsPermission.class, boolean.class, int.class, short.class, long.class, Progressable.class,
-        InetSocketAddress[].class);
+      checkFileSystemWithFavoredNode();
     } catch (NoSuchMethodException nm) {
       return;
     }
@@ -90,56 +95,7 @@ public class TestRegionFavoredNodes {
     TEST_UTIL.shutdownMiniCluster();
   }
 
-  @Test
-  public void testFavoredNodes() throws Exception {
-    Assume.assumeTrue(createWithFavoredNode != null);
-    // Get the addresses of the datanodes in the cluster.
-    InetSocketAddress[] nodes = new InetSocketAddress[REGION_SERVERS];
-    List<DataNode> datanodes = TEST_UTIL.getDFSCluster().getDataNodes();
-    Method selfAddress;
-    try {
-      selfAddress = DataNode.class.getMethod("getSelfAddr");
-    } catch (NoSuchMethodException ne) {
-      selfAddress = DataNode.class.getMethod("getXferAddress");
-    }
-    for (int i = 0; i < REGION_SERVERS; i++) {
-      nodes[i] = (InetSocketAddress) selfAddress.invoke(datanodes.get(i));
-    }
-
-    String[] nodeNames = new String[REGION_SERVERS];
-    for (int i = 0; i < REGION_SERVERS; i++) {
-      nodeNames[i] = nodes[i].getAddress().getHostAddress() + ":" + nodes[i].getPort();
-    }
-
-    // For each region, choose some datanodes as the favored nodes then assign
-    // them as favored nodes through the region.
-    for (int i = 0; i < REGION_SERVERS; i++) {
-      HRegionServer server = TEST_UTIL.getHBaseCluster().getRegionServer(i);
-      List<HRegion> regions = server.getRegions(TABLE_NAME);
-      for (HRegion region : regions) {
-        List<
-          org.apache.hadoop.hbase.shaded.protobuf.generated.HBaseProtos.ServerName> favoredNodes =
-            new ArrayList<>(3);
-        String encodedRegionName = region.getRegionInfo().getEncodedName();
-        for (int j = 0; j < FAVORED_NODES_NUM; j++) {
-          org.apache.hadoop.hbase.shaded.protobuf.generated.HBaseProtos.ServerName.Builder b =
-            org.apache.hadoop.hbase.shaded.protobuf.generated.HBaseProtos.ServerName.newBuilder();
-          b.setHostName(nodes[(i + j) % REGION_SERVERS].getAddress().getHostAddress());
-          b.setPort(nodes[(i + j) % REGION_SERVERS].getPort());
-          b.setStartCode(-1);
-          favoredNodes.add(b.build());
-        }
-        server.updateRegionFavoredNodesMapping(encodedRegionName, favoredNodes);
-      }
-    }
-
-    // Write some data to each region and flush. Repeat some number of times to
-    // get multiple files for each region.
-    for (int i = 0; i < FLUSHES; i++) {
-      TEST_UTIL.loadTable(table, COLUMN_FAMILY, false);
-      TEST_UTIL.flush();
-    }
-
+  protected void checkFavoredNodes(String[] nodeNames) throws Exception {
     // For each region, check the block locations of each file and ensure that
     // they are consistent with the favored nodes for that region.
     for (int i = 0; i < REGION_SERVERS; i++) {
@@ -166,5 +122,63 @@ public class TestRegionFavoredNodes {
         }
       }
     }
+  }
+
+  protected InetSocketAddress[] getDataNodes() throws Exception {
+    // Get the addresses of the datanodes in the cluster.
+    InetSocketAddress[] nodes = new InetSocketAddress[REGION_SERVERS];
+    List<DataNode> datanodes = TEST_UTIL.getDFSCluster().getDataNodes();
+    Method selfAddress;
+    try {
+      selfAddress = DataNode.class.getMethod("getSelfAddr");
+    } catch (NoSuchMethodException ne) {
+      selfAddress = DataNode.class.getMethod("getXferAddress");
+    }
+    for (int i = 0; i < REGION_SERVERS; i++) {
+      nodes[i] = (InetSocketAddress) selfAddress.invoke(datanodes.get(i));
+    }
+    return nodes;
+  }
+
+  protected void updateFavoredNodes(InetSocketAddress[] nodes) {
+    // For each region, choose some datanodes as the favored nodes then assign
+    // them as favored nodes through the region.
+    for (int i = 0; i < REGION_SERVERS; i++) {
+      HRegionServer server = TEST_UTIL.getHBaseCluster().getRegionServer(i);
+      List<HRegion> regions = server.getRegions(TABLE_NAME);
+      for (HRegion region : regions) {
+        List<
+          org.apache.hadoop.hbase.shaded.protobuf.generated.HBaseProtos.ServerName> favoredNodes =
+            new ArrayList<>(3);
+        String encodedRegionName = region.getRegionInfo().getEncodedName();
+        for (int j = 0; j < FAVORED_NODES_NUM; j++) {
+          org.apache.hadoop.hbase.shaded.protobuf.generated.HBaseProtos.ServerName.Builder b =
+            org.apache.hadoop.hbase.shaded.protobuf.generated.HBaseProtos.ServerName.newBuilder();
+          b.setHostName(nodes[(i + j) % REGION_SERVERS].getAddress().getHostAddress());
+          b.setPort(nodes[(i + j) % REGION_SERVERS].getPort());
+          b.setStartCode(-1);
+          favoredNodes.add(b.build());
+        }
+        server.updateRegionFavoredNodesMapping(encodedRegionName, favoredNodes);
+      }
+    }
+  }
+
+  @Test
+  public void testFavoredNodes() throws Exception {
+    Assume.assumeTrue(createWithFavoredNode != null);
+    InetSocketAddress[] nodes = getDataNodes();
+    String[] nodeNames = new String[REGION_SERVERS];
+    for (int i = 0; i < REGION_SERVERS; i++) {
+      nodeNames[i] = nodes[i].getAddress().getHostAddress() + ":" + nodes[i].getPort();
+    }
+    updateFavoredNodes(nodes);
+    // Write some data to each region and flush. Repeat some number of times to
+    // get multiple files for each region.
+    for (int i = 0; i < FLUSHES; i++) {
+      TEST_UTIL.loadTable(table, COLUMN_FAMILY, false);
+      TEST_UTIL.flush();
+    }
+    checkFavoredNodes(nodeNames);
   }
 }

@@ -21,7 +21,6 @@ import static org.apache.hadoop.hbase.compactionserver.HCompactionServer.COMPACT
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.HBaseRpcServicesBase;
@@ -45,7 +44,6 @@ import org.apache.hadoop.hbase.shaded.protobuf.generated.AdminProtos;
 import org.apache.hadoop.hbase.shaded.protobuf.generated.CompactionProtos;
 import org.apache.hadoop.hbase.shaded.protobuf.generated.CompactionProtos.CompactResponse;
 import org.apache.hadoop.hbase.shaded.protobuf.generated.CompactionProtos.CompactionService;
-import org.apache.hadoop.hbase.shaded.protobuf.generated.HBaseProtos;
 import org.apache.hadoop.hbase.shaded.protobuf.generated.QuotaProtos;
 
 @InterfaceAudience.Private
@@ -277,12 +275,11 @@ public class CSRpcServices extends HBaseRpcServicesBase
     ColumnFamilyDescriptor cfd = ProtobufUtil.toColumnFamilyDescriptor(request.getFamily());
     boolean major = request.getMajor();
     int priority = request.getPriority();
-    List<HBaseProtos.ServerName> favoredNodes = Collections.singletonList(request.getServer());
     LOG.info("Receive compaction request from {}", ProtobufUtil.toString(request));
-    CompactionTask compactionTask =
-      CompactionTask.newBuilder().setRsServerName(rsServerName).setRegionInfo(regionInfo)
-        .setColumnFamilyDescriptor(cfd).setRequestMajor(major).setPriority(priority)
-        .setFavoredNodes(favoredNodes).setSubmitTime(System.currentTimeMillis()).build();
+    CompactionTask compactionTask = CompactionTask.newBuilder().setRsServerName(rsServerName)
+      .setRegionInfo(regionInfo).setColumnFamilyDescriptor(cfd).setRequestMajor(major)
+      .setPriority(priority).setFavoredNodes(request.getFavoredNodesList())
+      .setSubmitTime(System.currentTimeMillis()).build();
     try {
       compactionServer.compactionThreadManager.requestCompaction(compactionTask);
       return CompactionProtos.CompactResponse.newBuilder().build();
