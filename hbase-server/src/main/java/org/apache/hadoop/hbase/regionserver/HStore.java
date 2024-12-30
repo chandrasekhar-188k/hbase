@@ -1500,7 +1500,7 @@ public class HStore
       return Optional.empty();
     }
     // Before we do compaction, try to get rid of unneeded files to simplify things.
-    removeUnneededFiles();
+    removeUnneededFiles(true);
 
     if (
       region.getRegionServerServices() != null
@@ -1624,7 +1624,7 @@ public class HStore
     Collections.sort(filesCompacting, storeEngine.getStoreFileManager().getStoreFileComparator());
   }
 
-  private void removeUnneededFiles() throws IOException {
+  public void removeUnneededFiles(boolean writeWalRecord) throws IOException {
     if (!conf.getBoolean("hbase.store.delete.expired.storefile", true)) {
       return;
     }
@@ -1653,7 +1653,7 @@ public class HStore
     }
 
     Collection<HStoreFile> newFiles = Collections.emptyList(); // No new files.
-    replaceStoreFiles(delSfs, newFiles, true);
+    replaceStoreFiles(delSfs, newFiles, writeWalRecord);
     refreshStoreSizeAndTotalBytes();
     LOG.info("Completed removal of " + delSfs.size() + " unnecessary (expired) file(s) in " + this
       + "; total size is " + TraditionalBinaryPrefix.long2String(storeSize.get(), "", 1));
