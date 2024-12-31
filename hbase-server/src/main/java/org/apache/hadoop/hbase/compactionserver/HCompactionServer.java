@@ -32,12 +32,16 @@ import org.apache.hadoop.hbase.HBaseServerBase;
 import org.apache.hadoop.hbase.HConstants;
 import org.apache.hadoop.hbase.HRegionLocation;
 import org.apache.hadoop.hbase.ServerName;
+import org.apache.hadoop.hbase.TableName;
 import org.apache.hadoop.hbase.YouAreDeadException;
 import org.apache.hadoop.hbase.coprocessor.CoprocessorHost;
+import org.apache.hadoop.hbase.coprocessor.RegionCoprocessorService;
 import org.apache.hadoop.hbase.fs.HFileSystem;
 import org.apache.hadoop.hbase.http.InfoServer;
 import org.apache.hadoop.hbase.log.HBaseMarkers;
 import org.apache.hadoop.hbase.namequeues.NamedQueueRecorder;
+import org.apache.hadoop.hbase.quotas.RegionServerRpcQuotaManager;
+import org.apache.hadoop.hbase.regionserver.HRegion;
 import org.apache.hadoop.hbase.regionserver.compactions.CompactionProgress;
 import org.apache.hadoop.hbase.security.SecurityConstants;
 import org.apache.hadoop.hbase.security.Superusers;
@@ -58,7 +62,7 @@ import org.apache.hadoop.hbase.shaded.protobuf.generated.CompactionServerStatusP
 import org.apache.hadoop.hbase.shaded.protobuf.generated.CompactionServerStatusProtos.CompactionServerStatusService;
 
 @InterfaceAudience.Private
-public class HCompactionServer extends HBaseServerBase {
+public class HCompactionServer extends HBaseServerBase implements RegionCoprocessorService {
 
   /** compaction server process name */
   public static final String COMPACTIONSERVER = "compactionserver";
@@ -379,5 +383,28 @@ public class HCompactionServer extends HBaseServerBase {
   @Override
   public void onConfigurationChange(Configuration conf) {
 
+  }
+
+  @Override
+  public HRegion getRegion(final String encodedRegionName) {
+    throw new UnsupportedOperationException(
+      "Method getRegion is not supported in HCompactionServer");
+  }
+
+  @Override
+  public List<HRegion> getRegions(TableName tableName) {
+    throw new UnsupportedOperationException(
+      "Method getRegions is not supported in HCompactionServer");
+  }
+
+  @Override
+  public List<HRegion> getRegions() {
+    throw new UnsupportedOperationException(
+      "Method getRegions is not supported in HCompactionServer");
+  }
+
+  @Override
+  public RegionServerRpcQuotaManager getRegionServerRpcQuotaManager() {
+    return null;
   }
 }

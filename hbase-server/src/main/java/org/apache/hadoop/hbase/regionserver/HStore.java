@@ -1200,8 +1200,8 @@ public class HStore
     }
   }
 
-  protected boolean completeCompaction(CompactionRequestImpl cr, List<String> filesToCompact,
-    User user, List<String> newFiles) throws IOException {
+  protected boolean completeCompaction(List<String> filesToCompact, User user,
+    List<String> newFiles) throws IOException {
     Collection<HStoreFile> selectedStoreFiles = new ArrayList<>();
     for (String selectedFile : filesToCompact) {
       HStoreFile storeFile = getStoreFileBasedOnFileName(selectedFile);
@@ -1219,6 +1219,8 @@ public class HStore
     for (String newFile : newFiles) {
       newFilePaths.add(new Path(storeTmpDir, newFile));
     }
+    CompactionRequestImpl cr = new CompactionRequestImpl(selectedStoreFiles);
+    cr.setIsMajor(getForceMajor(), getForceMajor());
     completeCompaction(cr, selectedStoreFiles, user, newFilePaths);
     return true;
   }
@@ -1243,6 +1245,17 @@ public class HStore
     }
     LOG.warn("Does not found store file for selectFileName: {}", fileName);
     return null;
+  }
+
+  public List<HStoreFile> getStoreFilesBaseOnFileNames(Collection<String> fileNames) {
+    List<HStoreFile> storeFiles = new ArrayList<>();
+    for (HStoreFile storeFile : getStorefiles()) {
+      String name = storeFile.getPath().getName();
+      if (fileNames.contains(name)) {
+        storeFiles.add(storeFile);
+      }
+    }
+    return storeFiles;
   }
 
   protected List<HStoreFile> doCompaction(CompactionRequestImpl cr,

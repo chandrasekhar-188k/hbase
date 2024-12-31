@@ -35,6 +35,7 @@ import org.apache.hadoop.hbase.HConstants;
 import org.apache.hadoop.hbase.RawCellBuilder;
 import org.apache.hadoop.hbase.RawCellBuilderFactory;
 import org.apache.hadoop.hbase.ServerName;
+import org.apache.hadoop.hbase.ServerType;
 import org.apache.hadoop.hbase.client.Append;
 import org.apache.hadoop.hbase.client.CheckAndMutate;
 import org.apache.hadoop.hbase.client.CheckAndMutateResult;
@@ -60,6 +61,7 @@ import org.apache.hadoop.hbase.coprocessor.MetricsCoprocessor;
 import org.apache.hadoop.hbase.coprocessor.ObserverContext;
 import org.apache.hadoop.hbase.coprocessor.RegionCoprocessor;
 import org.apache.hadoop.hbase.coprocessor.RegionCoprocessorEnvironment;
+import org.apache.hadoop.hbase.coprocessor.RegionCoprocessorService;
 import org.apache.hadoop.hbase.coprocessor.RegionObserver;
 import org.apache.hadoop.hbase.io.FSDataInputStreamWrapper;
 import org.apache.hadoop.hbase.io.Reference;
@@ -116,12 +118,12 @@ public class RegionCoprocessorHost
   /**
    * Encapsulation of the environment of each coprocessor
    */
-  private static class RegionEnvironment extends BaseEnvironment<RegionCoprocessor>
+  public static class RegionEnvironment extends BaseEnvironment<RegionCoprocessor>
     implements RegionCoprocessorEnvironment {
-    private Region region;
+    protected Region region;
     ConcurrentMap<String, Object> sharedData;
-    private final MetricRegistry metricRegistry;
-    private final RegionServerServices services;
+    protected final MetricRegistry metricRegistry;
+    protected final RegionCoprocessorService services;
     private final RpcQuotaManager rpcQuotaManager;
 
     /**
@@ -130,7 +132,7 @@ public class RegionCoprocessorHost
      * @param priority chaining priority
      */
     public RegionEnvironment(final RegionCoprocessor impl, final int priority, final int seq,
-      final Configuration conf, final Region region, final RegionServerServices services,
+      final Configuration conf, final Region region, final RegionCoprocessorService services,
       final ConcurrentMap<String, Object> sharedData) {
       super(impl, priority, seq, conf);
       this.region = region;
@@ -229,6 +231,11 @@ public class RegionCoprocessorHost
       throws IOException, RpcThrottlingException {
       return rpcQuotaManager.checkBatchQuota(region, numWrites, numReads);
     }
+
+    @Override
+    public ServerType getServerType() {
+      return services.getServerType();
+    }
   }
 
   /**
@@ -288,9 +295,9 @@ public class RegionCoprocessorHost
   }
 
   /** The region server services */
-  RegionServerServices rsServices;
+  protected RegionCoprocessorService rsServices;
   /** The region */
-  HRegion region;
+  protected HRegion region;
 
   /**
    * Constructor
@@ -298,8 +305,7 @@ public class RegionCoprocessorHost
    * @param rsServices interface to available region server functionality
    * @param conf       the configuration
    */
-  @SuppressWarnings("ReturnValueIgnored") // Checking method exists as CPU optimization
-  public RegionCoprocessorHost(final HRegion region, final RegionServerServices rsServices,
+  public RegionCoprocessorHost(final HRegion region, final RegionCoprocessorService rsServices,
     final Configuration conf) {
     super(rsServices);
     this.conf = conf;
@@ -463,8 +469,8 @@ public class RegionCoprocessorHost
     }
     // If a CoreCoprocessor, return a 'richer' environment, one laden with RegionServerServices.
     return instance.getClass().isAnnotationPresent(CoreCoprocessor.class)
-      ? new RegionEnvironmentForCoreCoprocessors(instance, priority, seq, conf, region, rsServices,
-        classData)
+      ? new RegionEnvironmentForCoreCoprocessors(instance, priority, seq, conf, region,
+        (RegionServerServices) rsServices, classData)
       : new RegionEnvironment(instance, priority, seq, conf, region, rsServices, classData);
   }
 

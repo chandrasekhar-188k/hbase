@@ -21,7 +21,10 @@ import static org.apache.hadoop.hbase.ChoreService.CHORE_SERVICE_INITIAL_POOL_SI
 import static org.apache.hadoop.hbase.ChoreService.DEFAULT_CHORE_SERVICE_INITIAL_POOL_SIZE;
 import static org.apache.hadoop.hbase.HConstants.DEFAULT_HBASE_SPLIT_COORDINATED_BY_ZK;
 import static org.apache.hadoop.hbase.HConstants.HBASE_SPLIT_WAL_COORDINATED_BY_ZK;
+import static org.apache.hadoop.hbase.compactionserver.HCompactionServer.COMPACTIONSERVER;
+import static org.apache.hadoop.hbase.master.HMaster.MASTER;
 import static org.apache.hadoop.hbase.regionserver.HRegionServer.MASTERLESS_CONFIG_NAME;
+import static org.apache.hadoop.hbase.regionserver.HRegionServer.REGIONSERVER;
 
 import com.google.errorprone.annotations.RestrictedApi;
 import io.opentelemetry.api.trace.Span;
@@ -985,6 +988,20 @@ public abstract class HBaseServerBase<R extends HBaseRpcServicesBase<?>> extends
       }
     }
     return this.dataFsOk;
+  }
+
+  public ServerType getServerType() {
+    String processName = getProcessName();
+    if (processName.equals(MASTER)) {
+      return ServerType.Master;
+    }
+    if (processName.equals(REGIONSERVER)) {
+      return ServerType.RegionServer;
+    }
+    if (processName.equals(COMPACTIONSERVER)) {
+      return ServerType.CompactionServer;
+    }
+    return ServerType.ReplicationServer;
   }
 
 }

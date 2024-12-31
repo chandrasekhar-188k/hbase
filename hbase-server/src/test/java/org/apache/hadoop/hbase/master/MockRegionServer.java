@@ -38,6 +38,7 @@ import org.apache.hadoop.hbase.CoordinatedStateManager;
 import org.apache.hadoop.hbase.ExtendedCellScannable;
 import org.apache.hadoop.hbase.PrivateCellUtil;
 import org.apache.hadoop.hbase.ServerName;
+import org.apache.hadoop.hbase.ServerType;
 import org.apache.hadoop.hbase.TableDescriptors;
 import org.apache.hadoop.hbase.TableName;
 import org.apache.hadoop.hbase.ZooKeeperConnectionException;
@@ -782,5 +783,10 @@ class MockRegionServer implements AdminProtos.AdminService.BlockingInterface,
   public CompleteCompactionResponse completeCompaction(RpcController controller,
     CompleteCompactionRequest request) throws ServiceException {
     return null;
+  }
+
+  @Override
+  public ServerType getServerType() {
+    return ServerType.RegionServer;
   }
 }
