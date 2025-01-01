@@ -308,6 +308,9 @@ public class CompactSplit implements CompactionRequester, PropagatingConfigurati
     ) {
       return;
     }
+    if (region.getCoprocessorHost() != null) {
+      region.getCoprocessorHost().preRequestCompaction();
+    }
     RegionServerSpaceQuotaManager spaceQuotaManager =
       this.server.getRegionServerSpaceQuotaManager();
 

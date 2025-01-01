@@ -103,11 +103,7 @@ import org.apache.hadoop.hbase.regionserver.MiniBatchOperationInProgress;
 import org.apache.hadoop.hbase.regionserver.Region;
 import org.apache.hadoop.hbase.regionserver.RegionScanner;
 import org.apache.hadoop.hbase.regionserver.RegionServerServices;
-import org.apache.hadoop.hbase.regionserver.ScanType;
 import org.apache.hadoop.hbase.regionserver.ScannerContext;
-import org.apache.hadoop.hbase.regionserver.Store;
-import org.apache.hadoop.hbase.regionserver.compactions.CompactionLifeCycleTracker;
-import org.apache.hadoop.hbase.regionserver.compactions.CompactionRequest;
 import org.apache.hadoop.hbase.replication.ReplicationEndpoint;
 import org.apache.hadoop.hbase.replication.ReplicationPeerConfig;
 import org.apache.hadoop.hbase.replication.SyncReplicationState;
@@ -1267,12 +1263,10 @@ public class AccessController implements MasterCoprocessor, RegionCoprocessor,
   }
 
   @Override
-  public InternalScanner preCompact(ObserverContext<? extends RegionCoprocessorEnvironment> c,
-    Store store, InternalScanner scanner, ScanType scanType, CompactionLifeCycleTracker tracker,
-    CompactionRequest request) throws IOException {
+  public void preRequestCompaction(ObserverContext<? extends RegionCoprocessorEnvironment> c)
+    throws IOException {
     requirePermission(c, "compact", getTableName(c.getEnvironment()), null, null, Action.ADMIN,
       Action.CREATE);
-    return scanner;
   }
 
   private void internalPreRead(final ObserverContext<? extends RegionCoprocessorEnvironment> c,

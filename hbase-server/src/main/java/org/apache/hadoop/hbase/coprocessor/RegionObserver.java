@@ -223,6 +223,13 @@ public interface RegionObserver {
   }
 
   /**
+   * Add for AccessController after HBASE-26089
+   */
+  default void preRequestCompaction(ObserverContext<? extends RegionCoprocessorEnvironment> c)
+    throws IOException {
+  }
+
+  /**
    * Called prior to selecting the {@link StoreFile StoreFiles} to compact from the list of
    * available candidates. To alter the files used for compaction, you may mutate the passed in list
    * of candidates. If you remove all the candidates then the compaction will be canceled.
