@@ -546,6 +546,8 @@
                 <jspcompiler outputdir="${generated.sources}/java" package="org.apache.hadoop.hbase.generated.master" uriroot="${src.webapps}/master" webxml="${build.webapps}/master/WEB-INF/web.xml"/>
                 <mkdir dir="${build.webapps}/regionserver/WEB-INF"/>
                 <jspcompiler outputdir="${generated.sources}/java" package="org.apache.hadoop.hbase.generated.regionserver" uriroot="${src.webapps}/regionserver" webxml="${build.webapps}/regionserver/WEB-INF/web.xml"/>
+                <mkdir dir="${build.webapps}/compactionserver/WEB-INF"/>
+                <jspcompiler outputdir="${generated.sources}/java" package="org.apache.hadoop.hbase.generated.compactionserver" uriroot="${src.webapps}/compactionserver" webxml="${build.webapps}/compactionserver/WEB-INF/web.xml"/>
               </target>
             </configuration>
           </execution>

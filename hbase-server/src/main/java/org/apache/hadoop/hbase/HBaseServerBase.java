@@ -399,7 +399,7 @@ public abstract class HBaseServerBase<R extends HBaseRpcServicesBase<?>> extends
   /**
    * Puts up the webui.
    */
-  private void putUpWebUI() throws IOException {
+  protected void putUpWebUI() throws IOException {
     int port =
       this.conf.getInt(HConstants.REGIONSERVER_INFO_PORT, HConstants.DEFAULT_REGIONSERVER_INFOPORT);
     String addr = this.conf.get("hbase.regionserver.info.bindAddress", "0.0.0.0");
@@ -422,6 +422,16 @@ public abstract class HBaseServerBase<R extends HBaseRpcServicesBase<?>> extends
     }
     // check if auto port bind enabled
     boolean auto = this.conf.getBoolean(HConstants.REGIONSERVER_INFO_PORT_AUTO, false);
+    tryCreateInfoServer(addr, port, auto);
+    port = this.infoServer.getPort();
+    conf.setInt(HConstants.REGIONSERVER_INFO_PORT, port);
+    int masterInfoPort =
+      conf.getInt(HConstants.MASTER_INFO_PORT, HConstants.DEFAULT_MASTER_INFOPORT);
+    conf.setInt("hbase.master.info.port.orig", masterInfoPort);
+    conf.setInt(HConstants.MASTER_INFO_PORT, port);
+  }
+
+  protected void tryCreateInfoServer(String addr, int port, boolean auto) throws IOException {
     while (true) {
       try {
         this.infoServer = new InfoServer(getProcessName(), addr, port, false, this.conf);
@@ -441,12 +451,6 @@ public abstract class HBaseServerBase<R extends HBaseRpcServicesBase<?>> extends
         LOG.info("Retry starting http info server with port: " + port);
       }
     }
-    port = this.infoServer.getPort();
-    conf.setInt(HConstants.REGIONSERVER_INFO_PORT, port);
-    int masterInfoPort =
-      conf.getInt(HConstants.MASTER_INFO_PORT, HConstants.DEFAULT_MASTER_INFOPORT);
-    conf.setInt("hbase.master.info.port.orig", masterInfoPort);
-    conf.setInt(HConstants.MASTER_INFO_PORT, port);
   }
 
   /**

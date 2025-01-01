@@ -128,7 +128,7 @@ public final class CompactionTask {
     return compactionContext;
   }
 
-  HStore getStore() {
+  public HStore getStore() {
     return store;
   }
 
