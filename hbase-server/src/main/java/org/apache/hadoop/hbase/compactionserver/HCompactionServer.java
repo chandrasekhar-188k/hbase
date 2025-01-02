@@ -64,7 +64,7 @@ import org.apache.hadoop.hbase.shaded.protobuf.generated.CompactionServerStatusP
 import org.apache.hadoop.hbase.shaded.protobuf.generated.CompactionServerStatusProtos.CompactionServerStatusService;
 
 @InterfaceAudience.Private
-public class HCompactionServer extends HBaseServerBase implements RegionCoprocessorService {
+public class HCompactionServer extends HBaseServerBase<CSRpcServices> implements RegionCoprocessorService {
 
   /** compaction server process name */
   public static final String COMPACTIONSERVER = "compactionserver";
@@ -104,7 +104,7 @@ public class HCompactionServer extends HBaseServerBase implements RegionCoproces
     return compactionThreadManager;
   }
 
-  protected final CSRpcServices rpcServices;
+  //protected final CSRpcServices rpcServices;
 
   // Stub to do compaction server status calls against the master.
   private volatile CompactionServerStatusService.BlockingInterface cssStub;
@@ -137,15 +137,9 @@ public class HCompactionServer extends HBaseServerBase implements RegionCoproces
     super(conf, COMPACTIONSERVER); // thread name
     this.msgInterval = conf.getInt(HConstants.COMPACTION_SERVER_MSG_INTERVAL, 3 * 1000);
     this.sleeper = new Sleeper(this.msgInterval, this);
-    this.rpcServices = createRpcServices();
+    //this.rpcServices = createRpcServices();
     setServerName(ServerName.valueOf(this.rpcServices.getSocketAddress().getHostName(),
       this.rpcServices.getSocketAddress().getPort(), this.startcode));
-    if (!this.masterless) {
-      masterAddressTracker = new MasterAddressTracker(getZooKeeper(), this);
-      masterAddressTracker.start();
-    } else {
-      masterAddressTracker = null;
-    }
 
     ZKAuthentication.loginClient(this.conf, HConstants.ZK_CLIENT_KEYTAB_FILE,
       HConstants.ZK_CLIENT_KERBEROS_PRINCIPAL, this.rpcServices.getSocketAddress().getHostName());
@@ -201,7 +195,7 @@ public class HCompactionServer extends HBaseServerBase implements RegionCoproces
 
   @Override
   protected Class<? extends HttpServlet> getDumpServlet() {
-    return null;
+    return CSDumpServlet.class;
   }
 
   @Override

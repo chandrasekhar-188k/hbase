@@ -47,7 +47,7 @@ import org.apache.hadoop.hbase.shaded.protobuf.generated.CompactionProtos.Compac
 import org.apache.hadoop.hbase.shaded.protobuf.generated.QuotaProtos;
 
 @InterfaceAudience.Private
-public class CSRpcServices extends HBaseRpcServicesBase
+public class CSRpcServices extends HBaseRpcServicesBase<HCompactionServer>
   implements CompactionService.BlockingInterface {
   protected static final Logger LOG = LoggerFactory.getLogger(CSRpcServices.class);
 
@@ -81,12 +81,12 @@ public class CSRpcServices extends HBaseRpcServicesBase
 
   @Override
   protected DNS.ServerType getDNSServerType() {
-    return null;
+    return DNS.ServerType.COMPACTIONSERVER;
   }
 
   @Override
   protected String getHostname(Configuration conf, String defaultHostname) {
-    return "";
+    return conf.get("hbase.compactionserver.ipc.address", defaultHostname);
   }
 
   @Override
@@ -101,7 +101,7 @@ public class CSRpcServices extends HBaseRpcServicesBase
 
   @Override
   protected PriorityFunction createPriority() {
-    return null;
+    return new CSAnnotationReadingPriorityFunction(this);
   }
 
   protected Class<?> getRpcSchedulerFactoryClass(Configuration conf) {
@@ -111,7 +111,11 @@ public class CSRpcServices extends HBaseRpcServicesBase
 
   @Override
   protected List<RpcServer.BlockingServiceAndInterface> getServices() {
-    return List.of();
+    List<RpcServer.BlockingServiceAndInterface> bssi = new ArrayList<>();
+    bssi.add(new RpcServer.BlockingServiceAndInterface(
+      CompactionService.newReflectiveBlockingService(this),
+      CompactionService.BlockingInterface.class));
+    return new ImmutableList.Builder<RpcServer.BlockingServiceAndInterface>().addAll(bssi).build();
   }
 
   CSRpcServices(final HCompactionServer cs) throws IOException {

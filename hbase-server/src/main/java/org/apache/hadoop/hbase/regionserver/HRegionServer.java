@@ -317,13 +317,13 @@ public class HRegionServer extends HBaseServerBase<RSRpcServices>
   private LeaseManager leaseManager;
 
   // Instance of the hbase executor executorService.
-  protected ExecutorService executorService;
+  //protected ExecutorService executorService;
 
-  private HFileSystem walFs;
+  //private HFileSystem walFs;
 
   // Go down hard. Used if file system becomes unavailable and also in
   // debugging and unit tests.
-  private AtomicBoolean abortRequested;
+  //private AtomicBoolean abortRequested;
   static final String ABORT_TIMEOUT = "hbase.regionserver.abort.timeout";
   // Default abort timeout is 1200 seconds for safe
   private static final long DEFAULT_ABORT_TIMEOUT = 1200000;
@@ -334,10 +334,10 @@ public class HRegionServer extends HBaseServerBase<RSRpcServices>
   // space regions.
   private boolean stopping = false;
   private volatile boolean killed = false;
-  private volatile boolean shutDown = false;
+  //private volatile boolean shutDown = false;
 
-  private Path dataRootDir;
-  private Path walRootDir;
+  //private Path dataRootDir;
+  //private Path walRootDir;
 
   private final int threadWakeFrequency;
 
@@ -386,7 +386,7 @@ public class HRegionServer extends HBaseServerBase<RSRpcServices>
   // Log Splitting Worker
   private SplitLogWorker splitLogWorker;
 
-  private final int shortOperationTimeout;
+  //private final int shortOperationTimeout;
 
   // Time to pause if master says 'please hold'
   private final long retryPauseTime;

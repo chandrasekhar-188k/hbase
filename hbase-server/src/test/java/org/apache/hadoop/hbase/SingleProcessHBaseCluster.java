@@ -35,6 +35,7 @@ import org.apache.hadoop.hbase.regionserver.HRegionServer;
 import org.apache.hadoop.hbase.regionserver.Region;
 import org.apache.hadoop.hbase.security.User;
 import org.apache.hadoop.hbase.test.MetricsAssertHelper;
+import org.apache.hadoop.hbase.test.MetricsAssertHelperImpl;
 import org.apache.hadoop.hbase.util.EnvironmentEdgeManager;
 import org.apache.hadoop.hbase.util.JVMClusterUtil;
 import org.apache.hadoop.hbase.util.JVMClusterUtil.MasterThread;
@@ -108,7 +109,8 @@ public class SingleProcessHBaseCluster extends HBaseClusterInterface {
     super(conf);
 
     // Hadoop 2
-    CompatibilityFactory.getInstance(MetricsAssertHelper.class).init();
+    //CompatibilityFactory.getInstance(MetricsAssertHelper.class).init();
+    new MetricsAssertHelperImpl().init();
 
     init(numMasters, numAlwaysStandByMasters, numRegionServers, rsPorts, numCompactionServers,
       masterClass, regionserverClass);

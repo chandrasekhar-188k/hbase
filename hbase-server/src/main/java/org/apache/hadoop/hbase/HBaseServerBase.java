@@ -367,7 +367,6 @@ public abstract class HBaseServerBase<R extends HBaseRpcServicesBase<?>> extends
       this.executorService = new ExecutorService(getName());
 
       this.metaRegionLocationCache = new MetaRegionLocationCache(zooKeeper);
-
       if (clusterMode()) {
         if (
           conf.getBoolean(HBASE_SPLIT_WAL_COORDINATED_BY_ZK, DEFAULT_HBASE_SPLIT_COORDINATED_BY_ZK)
@@ -386,6 +385,12 @@ public abstract class HBaseServerBase<R extends HBaseRpcServicesBase<?>> extends
       this.shortOperationTimeout = conf.getInt(HConstants.HBASE_RPC_SHORTOPERATION_TIMEOUT_KEY,
         HConstants.DEFAULT_HBASE_RPC_SHORTOPERATION_TIMEOUT);
       this.masterless = conf.getBoolean(MASTERLESS_CONFIG_NAME, false);
+      if (!this.masterless) {
+        masterAddressTracker = new MasterAddressTracker(getZooKeeper(), this);
+        masterAddressTracker.start();
+      } else {
+        masterAddressTracker = null;
+      }
       this.dataFsOk = true;
       span.setStatus(StatusCode.OK);
     } catch (Throwable t) {
@@ -720,6 +725,11 @@ public abstract class HBaseServerBase<R extends HBaseRpcServicesBase<?>> extends
    */
   protected void blockAndCheckIfStopped(ZKNodeTracker tracker)
     throws IOException, InterruptedException {
+    //TODO(chan) check why null check not added
+    if(null == tracker)
+    {
+      return;
+    }
     while (tracker.blockUntilAvailable(this.msgInterval, false) == null) {
       if (this.stopped) {
         throw new IOException("Received the shutdown message while waiting.");
