@@ -24,7 +24,6 @@ import static org.apache.hadoop.hbase.compactionserver.HCompactionServer.COMPACT
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import org.apache.commons.lang3.NotImplementedException;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.DoNotRetryIOException;
 import org.apache.hadoop.hbase.HBaseRpcServicesBase;
@@ -117,117 +116,136 @@ public class CSRpcServices extends HBaseRpcServicesBase<HCompactionServer>
   @Override
   public AdminProtos.GetRegionInfoResponse getRegionInfo(RpcController rpcController,
     AdminProtos.GetRegionInfoRequest getRegionInfoRequest) throws ServiceException {
-    throw new ServiceException(new DoNotRetryIOException("Unsupported method on compaction server"));
+    throw new ServiceException(
+      new DoNotRetryIOException("Unsupported method on compaction server"));
   }
 
   @Override
   public AdminProtos.GetStoreFileResponse getStoreFile(RpcController rpcController,
     AdminProtos.GetStoreFileRequest getStoreFileRequest) throws ServiceException {
-    throw new ServiceException(new DoNotRetryIOException("Unsupported method on compaction server"));
+    throw new ServiceException(
+      new DoNotRetryIOException("Unsupported method on compaction server"));
   }
 
   @Override
   public AdminProtos.GetOnlineRegionResponse getOnlineRegion(RpcController rpcController,
     AdminProtos.GetOnlineRegionRequest getOnlineRegionRequest) throws ServiceException {
-    throw new ServiceException(new DoNotRetryIOException("Unsupported method on compaction server"));
+    throw new ServiceException(
+      new DoNotRetryIOException("Unsupported method on compaction server"));
   }
 
   @Override
   public AdminProtos.OpenRegionResponse openRegion(RpcController rpcController,
     AdminProtos.OpenRegionRequest openRegionRequest) throws ServiceException {
-    throw new ServiceException(new DoNotRetryIOException("Unsupported method on compaction server"));
+    throw new ServiceException(
+      new DoNotRetryIOException("Unsupported method on compaction server"));
   }
 
   @Override
   public AdminProtos.WarmupRegionResponse warmupRegion(RpcController rpcController,
     AdminProtos.WarmupRegionRequest warmupRegionRequest) throws ServiceException {
-    throw new ServiceException(new DoNotRetryIOException("Unsupported method on compaction server"));
+    throw new ServiceException(
+      new DoNotRetryIOException("Unsupported method on compaction server"));
   }
 
   @Override
   public AdminProtos.CloseRegionResponse closeRegion(RpcController rpcController,
     AdminProtos.CloseRegionRequest closeRegionRequest) throws ServiceException {
-    throw new ServiceException(new DoNotRetryIOException("Unsupported method on compaction server"));
+    throw new ServiceException(
+      new DoNotRetryIOException("Unsupported method on compaction server"));
   }
 
   @Override
   public AdminProtos.FlushRegionResponse flushRegion(RpcController rpcController,
     AdminProtos.FlushRegionRequest flushRegionRequest) throws ServiceException {
-    throw new ServiceException(new DoNotRetryIOException("Unsupported method on compaction server"));
+    throw new ServiceException(
+      new DoNotRetryIOException("Unsupported method on compaction server"));
   }
 
   @Override
   public AdminProtos.CompactionSwitchResponse compactionSwitch(RpcController rpcController,
     AdminProtos.CompactionSwitchRequest compactionSwitchRequest) throws ServiceException {
-    throw new ServiceException(new DoNotRetryIOException("Unsupported method on compaction server"));
+    throw new ServiceException(
+      new DoNotRetryIOException("Unsupported method on compaction server"));
   }
 
   @Override
   public AdminProtos.CompactRegionResponse compactRegion(RpcController rpcController,
     AdminProtos.CompactRegionRequest compactRegionRequest) throws ServiceException {
-    throw new ServiceException(new DoNotRetryIOException("Unsupported method on compaction server"));
+    throw new ServiceException(
+      new DoNotRetryIOException("Unsupported method on compaction server"));
   }
 
   @Override
   public AdminProtos.ReplicateWALEntryResponse replicateWALEntry(RpcController rpcController,
     AdminProtos.ReplicateWALEntryRequest replicateWALEntryRequest) throws ServiceException {
-    throw new ServiceException(new DoNotRetryIOException("Unsupported method on compaction server"));
+    throw new ServiceException(
+      new DoNotRetryIOException("Unsupported method on compaction server"));
   }
 
   @Override
   public AdminProtos.ReplicateWALEntryResponse replay(RpcController rpcController,
     AdminProtos.ReplicateWALEntryRequest replicateWALEntryRequest) throws ServiceException {
-    throw new ServiceException(new DoNotRetryIOException("Unsupported method on compaction server"));
+    throw new ServiceException(
+      new DoNotRetryIOException("Unsupported method on compaction server"));
   }
 
   @Override
   public AdminProtos.ReplicateWALEntryResponse replicateToReplica(RpcController rpcController,
     AdminProtos.ReplicateWALEntryRequest replicateWALEntryRequest) throws ServiceException {
-    throw new ServiceException(new DoNotRetryIOException("Unsupported method on compaction server"));
+    throw new ServiceException(
+      new DoNotRetryIOException("Unsupported method on compaction server"));
   }
 
   @Override
   public AdminProtos.RollWALWriterResponse rollWALWriter(RpcController rpcController,
     AdminProtos.RollWALWriterRequest rollWALWriterRequest) throws ServiceException {
-    throw new ServiceException(new DoNotRetryIOException("Unsupported method on compaction server"));
+    throw new ServiceException(
+      new DoNotRetryIOException("Unsupported method on compaction server"));
   }
 
   @Override
   public AdminProtos.GetServerInfoResponse getServerInfo(RpcController rpcController,
     AdminProtos.GetServerInfoRequest getServerInfoRequest) throws ServiceException {
-    throw new ServiceException(new DoNotRetryIOException("Unsupported method on compaction server"));
+    throw new ServiceException(
+      new DoNotRetryIOException("Unsupported method on compaction server"));
   }
 
   @Override
   public AdminProtos.StopServerResponse stopServer(RpcController rpcController,
     AdminProtos.StopServerRequest stopServerRequest) throws ServiceException {
-    throw new ServiceException(new DoNotRetryIOException("Unsupported method on compaction server"));
+    throw new ServiceException(
+      new DoNotRetryIOException("Unsupported method on compaction server"));
   }
 
   @Override
   public AdminProtos.UpdateFavoredNodesResponse updateFavoredNodes(RpcController rpcController,
     AdminProtos.UpdateFavoredNodesRequest updateFavoredNodesRequest) throws ServiceException {
-    throw new ServiceException(new DoNotRetryIOException("Unsupported method on compaction server"));
+    throw new ServiceException(
+      new DoNotRetryIOException("Unsupported method on compaction server"));
   }
 
   @Override
   public AdminProtos.GetRegionLoadResponse getRegionLoad(RpcController rpcController,
     AdminProtos.GetRegionLoadRequest getRegionLoadRequest) throws ServiceException {
-    throw new ServiceException(new DoNotRetryIOException("Unsupported method on compaction server"));
+    throw new ServiceException(
+      new DoNotRetryIOException("Unsupported method on compaction server"));
   }
 
   @Override
   public AdminProtos.ClearCompactionQueuesResponse clearCompactionQueues(
     RpcController rpcController,
     AdminProtos.ClearCompactionQueuesRequest clearCompactionQueuesRequest) throws ServiceException {
-    throw new ServiceException(new DoNotRetryIOException("Unsupported method on compaction server"));
+    throw new ServiceException(
+      new DoNotRetryIOException("Unsupported method on compaction server"));
   }
 
   @Override
   public AdminProtos.ClearRegionBlockCacheResponse clearRegionBlockCache(
     RpcController rpcController,
     AdminProtos.ClearRegionBlockCacheRequest clearRegionBlockCacheRequest) throws ServiceException {
-    throw new ServiceException(new DoNotRetryIOException("Unsupported method on compaction server"));
+    throw new ServiceException(
+      new DoNotRetryIOException("Unsupported method on compaction server"));
   }
 
   @Override
@@ -235,25 +253,29 @@ public class CSRpcServices extends HBaseRpcServicesBase<HCompactionServer>
     RpcController rpcController,
     QuotaProtos.GetSpaceQuotaSnapshotsRequest getSpaceQuotaSnapshotsRequest)
     throws ServiceException {
-    throw new ServiceException(new DoNotRetryIOException("Unsupported method on compaction server"));
+    throw new ServiceException(
+      new DoNotRetryIOException("Unsupported method on compaction server"));
   }
 
   @Override
   public AdminProtos.ExecuteProceduresResponse executeProcedures(RpcController rpcController,
     AdminProtos.ExecuteProceduresRequest executeProceduresRequest) throws ServiceException {
-    throw new ServiceException(new DoNotRetryIOException("Unsupported method on compaction server"));
+    throw new ServiceException(
+      new DoNotRetryIOException("Unsupported method on compaction server"));
   }
 
   @Override
   public CompactionProtos.CompleteCompactionResponse completeCompaction(RpcController controller,
     CompactionProtos.CompleteCompactionRequest request) throws ServiceException {
-    throw new ServiceException(new DoNotRetryIOException("Unsupported method on compaction server"));
+    throw new ServiceException(
+      new DoNotRetryIOException("Unsupported method on compaction server"));
   }
 
   @Override
   public AdminProtos.GetCachedFilesListResponse getCachedFilesList(RpcController rpcController,
     AdminProtos.GetCachedFilesListRequest getCachedFilesListRequest) throws ServiceException {
-    throw new ServiceException(new DoNotRetryIOException("Unsupported method on compaction server"));
+    throw new ServiceException(
+      new DoNotRetryIOException("Unsupported method on compaction server"));
   }
 
   /**

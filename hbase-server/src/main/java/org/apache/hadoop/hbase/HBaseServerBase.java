@@ -725,9 +725,8 @@ public abstract class HBaseServerBase<R extends HBaseRpcServicesBase<?>> extends
    */
   protected void blockAndCheckIfStopped(ZKNodeTracker tracker)
     throws IOException, InterruptedException {
-    //TODO(chan) check why null check not added
-    if(null == tracker)
-    {
+    // TODO(chan) check why null check not added
+    if (null == tracker) {
       return;
     }
     while (tracker.blockUntilAvailable(this.msgInterval, false) == null) {

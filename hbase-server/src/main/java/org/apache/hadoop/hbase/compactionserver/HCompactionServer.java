@@ -17,6 +17,9 @@
  */
 package org.apache.hadoop.hbase.compactionserver;
 
+import static org.apache.hadoop.hbase.regionserver.HRegionServer.MASTERLESS_CONFIG_NAME;
+import static org.apache.hadoop.hbase.util.DNS.UNSAFE_CS_HOSTNAME_KEY;
+
 import java.io.IOException;
 import java.net.InetAddress;
 import java.util.Collection;
@@ -50,7 +53,6 @@ import org.apache.hadoop.hbase.security.UserProvider;
 import org.apache.hadoop.hbase.util.Addressing;
 import org.apache.hadoop.hbase.util.Sleeper;
 import org.apache.hadoop.hbase.util.VersionInfo;
-import org.apache.hadoop.hbase.zookeeper.MasterAddressTracker;
 import org.apache.hadoop.hbase.zookeeper.ZKAuthentication;
 import org.apache.yetus.audience.InterfaceAudience;
 import org.slf4j.Logger;
@@ -62,12 +64,10 @@ import org.apache.hadoop.hbase.shaded.protobuf.ProtobufUtil;
 import org.apache.hadoop.hbase.shaded.protobuf.generated.ClusterStatusProtos;
 import org.apache.hadoop.hbase.shaded.protobuf.generated.CompactionServerStatusProtos;
 import org.apache.hadoop.hbase.shaded.protobuf.generated.CompactionServerStatusProtos.CompactionServerStatusService;
-import static org.apache.hadoop.hbase.regionserver.HRegionServer.MASTERLESS_CONFIG_NAME;
-import static org.apache.hadoop.hbase.util.DNS.MASTER_HOSTNAME_KEY;
-import static org.apache.hadoop.hbase.util.DNS.UNSAFE_CS_HOSTNAME_KEY;
 
 @InterfaceAudience.Private
-public class HCompactionServer extends HBaseServerBase<CSRpcServices> implements RegionCoprocessorService {
+public class HCompactionServer extends HBaseServerBase<CSRpcServices>
+  implements RegionCoprocessorService {
 
   /** compaction server process name */
   public static final String COMPACTIONSERVER = "compactionserver";
@@ -107,7 +107,7 @@ public class HCompactionServer extends HBaseServerBase<CSRpcServices> implements
     return compactionThreadManager;
   }
 
-  //protected final CSRpcServices rpcServices;
+  // protected final CSRpcServices rpcServices;
 
   // Stub to do compaction server status calls against the master.
   private volatile CompactionServerStatusService.BlockingInterface cssStub;
@@ -140,7 +140,7 @@ public class HCompactionServer extends HBaseServerBase<CSRpcServices> implements
     super(conf, COMPACTIONSERVER); // thread name
     this.msgInterval = conf.getInt(HConstants.COMPACTION_SERVER_MSG_INTERVAL, 3 * 1000);
     this.sleeper = new Sleeper(this.msgInterval, this);
-    //this.rpcServices = createRpcServices();
+    // this.rpcServices = createRpcServices();
     setServerName(ServerName.valueOf(this.rpcServices.getSocketAddress().getHostName(),
       this.rpcServices.getSocketAddress().getPort(), this.startcode));
 
