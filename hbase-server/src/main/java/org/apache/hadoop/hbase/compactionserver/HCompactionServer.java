@@ -62,6 +62,9 @@ import org.apache.hadoop.hbase.shaded.protobuf.ProtobufUtil;
 import org.apache.hadoop.hbase.shaded.protobuf.generated.ClusterStatusProtos;
 import org.apache.hadoop.hbase.shaded.protobuf.generated.CompactionServerStatusProtos;
 import org.apache.hadoop.hbase.shaded.protobuf.generated.CompactionServerStatusProtos.CompactionServerStatusService;
+import static org.apache.hadoop.hbase.regionserver.HRegionServer.MASTERLESS_CONFIG_NAME;
+import static org.apache.hadoop.hbase.util.DNS.MASTER_HOSTNAME_KEY;
+import static org.apache.hadoop.hbase.util.DNS.UNSAFE_CS_HOSTNAME_KEY;
 
 @InterfaceAudience.Private
 public class HCompactionServer extends HBaseServerBase<CSRpcServices> implements RegionCoprocessorService {
@@ -73,7 +76,7 @@ public class HCompactionServer extends HBaseServerBase<CSRpcServices> implements
   final LongAdder requestCount = new LongAdder();
   final LongAdder requestFailedCount = new LongAdder();
   // ChoreService used to schedule tasks that we want to run periodically
-  private ChoreService choreService;
+  private final ChoreService choreService;
 
   @Override
   protected String getProcessName() {
@@ -92,7 +95,7 @@ public class HCompactionServer extends HBaseServerBase<CSRpcServices> implements
 
   @Override
   protected boolean canCreateBaseZNode() {
-    return false;
+    return this.masterless;
   }
 
   @Override
@@ -130,7 +133,7 @@ public class HCompactionServer extends HBaseServerBase<CSRpcServices> implements
 
   @Override
   protected String getUseThisHostnameInstead(Configuration conf) throws IOException {
-    return "";
+    return conf.get(UNSAFE_CS_HOSTNAME_KEY);
   }
 
   public HCompactionServer(final Configuration conf) throws IOException {
@@ -210,7 +213,7 @@ public class HCompactionServer extends HBaseServerBase<CSRpcServices> implements
 
   @Override
   protected boolean clusterMode() {
-    return false;
+    return !conf.getBoolean(MASTERLESS_CONFIG_NAME, false);
   }
 
   private ClusterStatusProtos.CompactionServerLoad buildServerLoad(long reportStartTime,
@@ -268,11 +271,6 @@ public class HCompactionServer extends HBaseServerBase<CSRpcServices> implements
       return false;
     }
     return true;
-  }
-
-  @Override
-  public boolean isAborted() {
-    return false;
   }
 
   /**
@@ -382,33 +380,33 @@ public class HCompactionServer extends HBaseServerBase<CSRpcServices> implements
       return (HCompactionServer) constructServer(compactionServerClass, conf);
     } catch (Exception e) {
       throw new RuntimeException(
-        "Failed construction of " + "Compactionserver: " + compactionServerClass.toString(), e);
+        "Failed construction of " + "Compaction server: " + compactionServerClass.toString(), e);
     }
   }
 
   @Override
   public String getClusterId() {
-    return "";
+    return this.clusterId;
   }
 
   @Override
   public Optional<ServerName> getActiveMaster() {
-    return Optional.empty();
+    return Optional.ofNullable(masterAddressTracker.getMasterAddress());
   }
 
   @Override
   public List<ServerName> getBackupMasters() {
-    return List.of();
+    return masterAddressTracker.getBackupMasters();
   }
 
   @Override
   public Iterator<ServerName> getBootstrapNodes() {
-    return null;
+    return bootstrapNodeManager.getBootstrapNodes().iterator();
   }
 
   @Override
   public List<HRegionLocation> getMetaLocations() {
-    return List.of();
+    return metaRegionLocationCache.getMetaRegionLocations();
   }
 
   @Override
