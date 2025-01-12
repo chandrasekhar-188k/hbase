@@ -87,6 +87,7 @@ show_usage() {
     echo "  zkcli            Run the ZooKeeper shell"
     echo "  master           Run an HBase HMaster node"
     echo "  regionserver     Run an HBase HRegionServer node"
+    echo "  compactionserver Run an HBase Compaction Server node"
     echo "  zookeeper        Run a ZooKeeper server"
     echo "  rest             Run an HBase REST server"
     echo "  thrift           Run the HBase Thrift server"
@@ -415,7 +416,7 @@ fi
 unset IFS
 
 #Set the right GC options based on the what we are running
-declare -a server_cmds=("master" "regionserver" "thrift" "thrift2" "rest" "avro" "zookeeper")
+declare -a server_cmds=("master" "regionserver" "thrift" "thrift2" "rest" "avro" "zookeeper" "compactionserver")
 for cmd in ${server_cmds[@]}; do
 	if [[ $cmd == $COMMAND ]]; then
 		server=true
@@ -658,6 +659,11 @@ elif [ "$COMMAND" = "regionserver" ] ; then
   CLASS='org.apache.hadoop.hbase.regionserver.HRegionServer'
   if [ "$1" != "stop" ] ; then
     HBASE_OPTS="$HBASE_OPTS $HBASE_REGIONSERVER_OPTS"
+  fi
+elif [ "$COMMAND" = "compactionserver" ] ; then
+  CLASS='org.apache.hadoop.hbase.compactionserver.HCompactionServer'
+  if [ "$1" != "stop" ] ; then
+    HBASE_OPTS="$HBASE_OPTS $HBASE_COMPACTIONSERVER_OPTS"
   fi
 elif [ "$COMMAND" = "thrift" ] ; then
   CLASS='org.apache.hadoop.hbase.thrift.ThriftServer'

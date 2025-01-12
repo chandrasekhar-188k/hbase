@@ -285,6 +285,7 @@ public class HCompactionServer extends HBaseServerBase<CSRpcServices>
 
     try {
       preRegistrationInitialization();
+      initializeMemStoreChunkCreator(null);
     } catch (Throwable e) {
       abort("Fatal exception during initialization", e);
     }
